@@ -1,13 +1,58 @@
 .word-favorites-container {
-  padding: 24px;
+  padding: 32px 40px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 5% 15%, rgba(24, 144, 255, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 95% 85%, rgba(114, 46, 209, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 10%, rgba(250, 173, 20, 0.04) 0%, transparent 30%),
+    radial-gradient(circle at 10% 90%, rgba(82, 196, 26, 0.04) 0%, transparent 30%),
+    linear-gradient(135deg, #f8faff 0%, #f0f5ff 50%, #f6f0ff 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.word-favorites-container::before {
+  content: '';
+  position: absolute;
+  top: 60px;
+  right: 80px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(24, 144, 255, 0.08), rgba(114, 46, 209, 0.06));
+  pointer-events: none;
+  z-index: 0;
+}
+
+.word-favorites-container::after {
+  content: '';
+  position: absolute;
+  bottom: 40px;
+  left: 60px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(82, 196, 26, 0.07), rgba(250, 173, 20, 0.05));
+  pointer-events: none;
+  z-index: 0;
 }
 
 .header-section {
   margin-bottom: 24px;
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  padding: 20px 28px;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.8);
 }
 
 .content-section {
   min-height: 500px;
+  position: relative;
+  z-index: 1;
 }
 
 .loading-container {
@@ -24,6 +69,11 @@
 
 .word-card-item {
   height: 100%;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
 
 .card-title {
@@ -36,12 +86,18 @@
 }
 
 .phonetic-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
 .phonetic {
-  font-size: 14px;
+  font-size: 13px;
   color: #666;
+  background: #f5f7fa;
+  padding: 2px 10px;
+  border-radius: 20px;
 }
 
 .meanings p {
@@ -51,22 +107,53 @@
   line-height: 1.6;
 }
 
+/* 例句样式 */
+.examples-section {
+  margin-top: 10px;
+  border-top: 1px dashed #e8e8e8;
+  padding-top: 10px;
+}
+
+.example-item {
+  padding: 8px 10px;
+  background: linear-gradient(135deg, #f9fbff 0%, #f5f0ff 100%);
+  border-radius: 8px;
+  border-left: 3px solid #d3adf7;
+}
+
+.example-en {
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 4px;
+  line-height: 1.6;
+}
+
+.example-cn {
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+  line-height: 1.5;
+}
+
 /* 练习模式 */
 .practice-mode {
-  max-width: 800px;
+  max-width: 860px;
   margin: 0 auto;
 }
 
 .word-card {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
   padding: 48px;
-  border-radius: 8px;
+  border-radius: 20px;
   text-align: center;
   min-height: 400px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.9);
 }
 
 .word-card h2 {
@@ -106,35 +193,36 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 32px;
-  padding: 16px 24px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 600px;
+  margin-top: 28px;
+  padding: 18px 28px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.8);
 }
 
 .progress-text {
   font-size: 16px;
-  color: #666;
+  color: #888;
 }
 
 /* 填空模式 */
 .word-display {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
-  margin: 32px 0;
+  margin: 36px 0;
   flex-wrap: wrap;
 }
 
 .char-box {
-  width: 40px;
-  height: 50px;
+  width: 44px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: bold;
   border-bottom: 2px solid #d9d9d9;
 }
@@ -144,13 +232,13 @@
 }
 
 .fill-input {
-  width: 40px;
+  width: 44px;
   text-align: center;
 }
 
 .fill-input :deep(input) {
   text-align: center;
-  font-size: 24px;
+  font-size: 26px;
   font-weight: bold;
   border: none;
   border-bottom: 2px solid #1890ff;

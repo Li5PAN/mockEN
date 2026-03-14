@@ -25,49 +25,70 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { login, getUserInfo } from '@/api/auth'
 
 const router = useRouter()
 const loginForm = ref({ username: '', password: '' })
 const errorMsg = ref('')
 const loading = ref(false)
 
+// 假数据用户列表
+const mockUsers = [
+  { username: 'student', password: '123456', role: '1', name: '张三', userId: 1 },
+  { username: 'teacher', password: '123456', role: '2', name: '李老师', userId: 2 },
+  { username: 'admin', password: '123456', role: '3', name: '管理员', userId: 3 }
+]
+
 const handleLogin = async () => {
   errorMsg.value = ''
   const { username, password } = loginForm.value
-  if (!username || !password) { errorMsg.value = '请输入账号和密码'; return }
+  if (!username || !password) { 
+    errorMsg.value = '请输入账号和密码'
+    return 
+  }
 
   loading.value = true
+  
+  // 模拟网络延迟
+  await new Promise(resolve => setTimeout(resolve, 500))
+
   try {
-    // 1. 登录拿 token
-    const res = await login({ username, password })
-    localStorage.setItem('token', res.token)
+    // 查找匹配的用户
+    const user = mockUsers.find(u => u.username === username && u.password === password)
+    
+    if (!user) {
+      errorMsg.value = '账号或密码错误'
+      loading.value = false
+      return
+    }
 
-    // 2. 用 token 获取用户信息（含角色）
-    const infoRes = await getUserInfo()
-    const userInfo = infoRes.user || infoRes.data || infoRes
+    // 保存 token（模拟）
+    localStorage.setItem('token', `mock-token-${user.userId}`)
 
-    // 3. 解析角色
-    // 后端 roles 是对象数组: [{ roleKey: 'student', roleName: '学生', ... }]
-    const rolesArr = infoRes.roles || userInfo.roles
-    const rawRole = userInfo.role
-      || userInfo.userType
-      || rolesArr?.[0]?.roleKey
-      || rolesArr?.[0]?.roleName
-      || (typeof rolesArr?.[0] === 'string' ? rolesArr[0] : undefined)
+    // 根据角色类型映射路由
+    const roleMap = {
+      '1': { route: '/student/home', roleName: 'student' },
+      '2': { route: '/teacher/home', roleName: 'teacher' },
+      '3': { route: '/admin/home', roleName: 'admin' }
+    }
 
-    const roleMap = { '0': 'student', 'STUDENT': 'student', '1': 'teacher', 'TEACHER': 'teacher', '2': 'admin', 'ADMIN': 'admin' }
-    const role = roleMap[rawRole] || rawRole || 'student'
-
-    // 4. 保存用户信息
-    localStorage.setItem('userInfo', JSON.stringify({ ...userInfo, role }))
+    const roleInfo = roleMap[user.role]
+    
+    // 保存用户信息
+    const userInfo = {
+      userId: user.userId,
+      username: user.username,
+      name: user.name,
+      role: roleInfo.roleName,
+      roleType: user.role
+    }
+    localStorage.setItem('userInfo', JSON.stringify(userInfo))
+    
     message.success('登录成功')
 
-    // 5. 跳转
-    const routeMap = { student: '/student/home', teacher: '/teacher/home', admin: '/admin/home' }
-    router.push(routeMap[role] || '/student/home')
+    // 跳转到对应页面
+    router.push(roleInfo.route)
   } catch (error) {
-    errorMsg.value = error.response?.data?.msg || error.message || '登录失败，请检查账号密码'
+    errorMsg.value = '登录失败，请重试'
   } finally {
     loading.value = false
   }

@@ -75,8 +75,18 @@
                 </div>
               </template>
               <div class="phonetic-area">
+                <span v-if="word.ukPhonetic" class="phonetic">
+                  英 [{{ word.ukPhonetic }}]
+                  <a-button 
+                    type="link" 
+                    size="small"
+                    @click="playAudio(word.ukSpeech)"
+                  >
+                    <SoundOutlined />
+                  </a-button>
+                </span>
                 <span v-if="word.usPhonetic" class="phonetic">
-                  [{{ word.usPhonetic }}]
+                  美 [{{ word.usPhonetic }}]
                   <a-button 
                     type="link" 
                     size="small"
@@ -90,6 +100,16 @@
                 <p v-for="(meaning, index) in word.meanings.slice(0, 2)" :key="index">
                   {{ meaning }}
                 </p>
+              </div>
+              <div v-if="word.examples && word.examples.length > 0" class="examples-section">
+                <div 
+                  v-for="(example, idx) in word.examples.slice(0, 1)" 
+                  :key="idx"
+                  class="example-item"
+                >
+                  <p class="example-en">{{ example.sentence }}</p>
+                  <p class="example-cn">{{ example.translation }}</p>
+                </div>
               </div>
             </a-card>
           </a-col>

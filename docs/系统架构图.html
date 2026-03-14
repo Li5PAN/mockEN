@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>英语学习辅助系统 - 整体架构图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "SimHei", sans-serif;
+    background: #f5f5f5;
+    padding: 20px;
+    min-width: 1300px;
+  }
+  .arch-container {
+    width: 1260px;
+    margin: 0 auto;
+    background: #fff;
+    border: 2px solid #2F5496;
+    border-radius: 8px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* ========== 第1层：业务总览层 ========== */
+  .layer1 {
+    background: linear-gradient(135deg, #FFD700 0%, #FFC107 100%);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #DAA520;
+  }
+  .layer1 .left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .layer1 .left .icon { font-size: 28px; }
+  .layer1 .left .title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+  }
+  .layer1 .right {
+    display: flex;
+    gap: 10px;
+  }
+  .layer1 .right .tag {
+    background: #2F5496;
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+
+  /* ========== 第2层：核心业务管理层 ========== */
+  .layer2 {
+    background: #E8EFF8;
+    padding: 16px;
+    border-bottom: 2px solid #4472C4;
+  }
+  .layer2-title {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+  .layer2-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .layer2-grid.row2 {
+    margin-top: 12px;
+    grid-template-columns: 1fr 1fr;
+  }
+  .module-box {
+    background: #4472C4;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #2F5496;
+  }
+  .module-box .mod-title {
+    background: #2F5496;
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+  }
+  .module-box .mod-body {
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .module-box .mod-item {
+    background: #B4C7E7;
+    border: 1px solid #8DB4E2;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #1a1a1a;
+    text-align: center;
+    min-width: 100px;
+  }
+  .module-box .mod-item.highlight {
+    background: #D5A6E6;
+    border-color: #9B59B6;
+    font-weight: bold;
+  }
+  .module-box .mod-bottom {
+    background: #fff;
+    margin: 0 10px 10px;
+    border-radius: 4px;
+    padding: 6px 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .module-box .mod-bottom .bot-item {
+    background: #f0f4fa;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: 11px;
+    color: #555;
+  }
+
+  /* ========== 第3层：系统支撑与监控层 ========== */
+  .layer3 {
+    background: #FFFDE7;
+    padding: 16px;
+    border-bottom: 2px solid #DAA520;
+    border-top: none;
+  }
+  .layer3-title {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+  .layer3-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .monitor-box {
+    background: #fff;
+    border: 2px dashed #DAA520;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .monitor-box .mon-title {
+    background: #FFF3CD;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #856404;
+    border-bottom: 1px solid #DAA520;
+  }
+  .monitor-box .mon-body {
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .monitor-box .mon-item {
+    background: #FFFDE7;
+    border: 1px solid #E0D68A;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #333;
+  }
+  .monitor-box .mon-item.green {
+    background: #CCFF99;
+    border-color: #66CC00;
+  }
+
+  /* ========== 第4层：基础能力与平台层 ========== */
+  .layer4 {
+    background: #E8E8E8;
+    padding: 16px;
+  }
+  .layer4-title {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 12px;
+    font-weight: bold;
+    letter-spacing: 2px;
+  }
+  .layer4-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .platform-box {
+    background: #fff;
+    border: 1px solid #999;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .platform-box .plat-title {
+    background: #D6DCE4;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #333;
+    border-bottom: 1px solid #999;
+    text-align: center;
+  }
+  .platform-box .plat-body {
+    padding: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .platform-box .plat-item {
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #444;
+    text-align: center;
+  }
+  .platform-box .plat-item.blue {
+    background: #D6E4F0;
+    border-color: #4472C4;
+    color: #2F5496;
+  }
+  .platform-box .plat-item.orange {
+    background: #FFE0B2;
+    border-color: #FF9800;
+    color: #E65100;
+  }
+  .platform-box .plat-item.green {
+    background: #C8E6C9;
+    border-color: #4CAF50;
+    color: #2E7D32;
+  }
+
+  /* ========== 右侧技术栈标签 ========== */
+  .main-wrapper {
+    display: flex;
+    gap: 0;
+  }
+  .main-left {
+    flex: 1;
+  }
+  .main-right {
+    width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .right-section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 6px;
+  }
+  .right-section.s1 { background: #E8EFF8; border-bottom: 2px solid #4472C4; }
+  .right-section.s2 { background: #FFFDE7; border-bottom: 2px solid #DAA520; }
+  .right-section.s3 { background: #E8E8E8; }
+  .right-tag {
+    padding: 5px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+    position: relative;
+  }
+  .right-tag.blue { background: #D6E4F0; border: 1px solid #4472C4; color: #2F5496; }
+  .right-tag.orange { background: #FFE0B2; border: 1px solid #FF9800; color: #E65100; }
+  .right-tag.green { background: #C8E6C9; border: 1px solid #4CAF50; color: #2E7D32; }
+  .right-tag.yellow { background: #FFF3CD; border: 1px solid #DAA520; color: #856404; }
+
+  /* 箭头指示 */
+  .arrow-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2px 0 2px 0;
+  }
+  .arrow-line {
+    width: 30px;
+    height: 2px;
+    background: #FF8C00;
+    position: relative;
+  }
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: -4px;
+    border: 5px solid transparent;
+    border-left: 7px solid #FF8C00;
+  }
+  .arrow-left {
+    transform: rotate(180deg);
+  }
+
+  /* 层间箭头 */
+  .layer-arrow {
+    text-align: center;
+    padding: 4px 0;
+    background: #fff;
+  }
+  .layer-arrow .down-arrow {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 14px solid #4472C4;
+  }
+
+  /* 整体布局 */
+  .full-layout {
+    display: flex;
+    width: 1260px;
+    margin: 0 auto;
+  }
+  .left-main {
+    flex: 1;
+    border: 2px solid #2F5496;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .right-sidebar {
+    width: 190px;
+    margin-left: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .right-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .right-group-title {
+    font-size: 10px;
+    color: #999;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+  .sidebar-tag {
+    padding: 7px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: center;
+    cursor: default;
+  }
+  .sidebar-tag.blue { background: #D6E4F0; border: 1px solid #4472C4; color: #2F5496; }
+  .sidebar-tag.orange { background: #FFE0B2; border: 1px solid #FF9800; color: #E65100; }
+  .sidebar-tag.green { background: #C8E6C9; border: 1px solid #4CAF50; color: #2E7D32; }
+  .sidebar-tag.yellow { background: #FFF3CD; border: 1px solid #DAA520; color: #856404; }
+  .sidebar-tag.purple { background: #E8D5F5; border: 1px solid #9B59B6; color: #6C3483; }
+
+  .sidebar-arrow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0;
+  }
+  .sidebar-arrow .line {
+    flex: 1;
+    height: 2px;
+    background: #FF8C00;
+  }
+  .sidebar-arrow .head {
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 8px solid #FF8C00;
+  }
+</style>
+</head>
+<body>
+
+<div class="full-layout">
+
+<!-- ========== 左侧主体 ========== -->
+<div class="left-main">
+
+  <!-- 第1层：业务总览层 -->
+  <div class="layer1">
+    <div class="left">
+      <span class="icon">📊</span>
+      <span class="title">英语学习辅助系统整体业务视图</span>
+    </div>
+    <div class="right">
+      <span class="tag">学习数据总览</span>
+      <span class="tag">任务完成率报表</span>
+      <span class="tag">学情分析看板</span>
+    </div>
+  </div>
+
+  <!-- 层间箭头 -->
+  <div class="layer-arrow"><span class="down-arrow"></span></div>
+
+  <!-- 第2层：核心业务管理层 -->
+  <div class="layer2">
+    <div class="layer2-grid">
+
+      <!-- 模块1：用户与权限管理 -->
+      <div class="module-box">
+        <div class="mod-title">用户与权限管理模块</div>
+        <div class="mod-body">
+          <div class="mod-item">用户认证（登录/注册）</div>
+          <div class="mod-item">角色权限控制</div>
+          <div class="mod-item">Token管理</div>
+          <div class="mod-item">会话控制</div>
+        </div>
+        <div class="mod-bottom">
+          <span class="bot-item">学生</span>
+          <span class="bot-item">教师</span>
+          <span class="bot-item">管理员</span>
+        </div>
+      </div>
+
+      <!-- 模块2：班级与教学管理 -->
+      <div class="module-box">
+        <div class="mod-title">班级与教学管理模块</div>
+        <div class="mod-body">
+          <div class="mod-item">班级创建与管理</div>
+          <div class="mod-item">入班申请审核</div>
+          <div class="mod-item">成员流转（转班/退班）</div>
+          <div class="mod-item">班级公告与通知</div>
+        </div>
+        <div class="mod-bottom">
+          <span class="bot-item">关联分析调度</span>
+        </div>
+      </div>
+
+      <!-- 模块3：任务与学习管理 -->
+      <div class="module-box">
+        <div class="mod-title">任务与学习管理模块</div>
+        <div class="mod-body">
+          <div class="mod-item">任务发布与题目编辑</div>
+          <div class="mod-item">任务执行跟踪与督促</div>
+          <div class="mod-item">答题提交与自动批改</div>
+        </div>
+        <div class="mod-bottom">
+          <span class="bot-item">任务调度引擎</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第二行模块 -->
+    <div class="layer2-grid row2" style="margin-top:12px;">
+      <!-- 模块4：错题与数据统计 -->
+      <div class="module-box">
+        <div class="mod-title">错题与数据统计模块</div>
+        <div class="mod-body">
+          <div class="mod-item">错题自动归集与分类统计</div>
+          <div class="mod-item">错题导入/导出与详情查看</div>
+          <div class="mod-item">学习进度与班级学情分析</div>
+        </div>
+        <div class="mod-bottom">
+          <span class="bot-item">ECharts数据可视化</span>
+          <span class="bot-item">Excel导入导出</span>
+        </div>
+      </div>
+
+      <!-- 模块5：单词学习模块 -->
+      <div class="module-box">
+        <div class="mod-title">单词学习模块</div>
+        <div class="mod-body">
+          <div class="mod-item">单词库管理与查询</div>
+          <div class="mod-item highlight">有道词典API集成（发音/释义）</div>
+          <div class="mod-item">单词收藏与练习模式</div>
+          <div class="mod-item">拼写/填空练习</div>
+        </div>
+        <div class="mod-bottom">
+          <span class="bot-item">词典服务</span>
+          <span class="bot-item">收藏管理</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 层间箭头 -->
+  <div class="layer-arrow"><span class="down-arrow"></span></div>
+
+  <!-- 第3层：系统支撑与监控层 -->
+  <div class="layer3">
+    <div class="layer3-grid">
+      <!-- 系统资源监控 -->
+      <div class="monitor-box">
+        <div class="mon-title">🖥️ 系统资源监控</div>
+        <div class="mon-body">
+          <div class="mon-item">服务器性能监控</div>
+          <div class="mon-item">数据库性能监控</div>
+          <div class="mon-item">接口性能监控</div>
+          <div class="mon-item">日志管理与异常告警</div>
+        </div>
+      </div>
+
+      <!-- 数据采集与分析 -->
+      <div class="monitor-box">
+        <div class="mon-title">📈 数据采集与分析</div>
+        <div class="mon-body">
+          <div class="mon-item green">学习行为数据采集</div>
+          <div class="mon-item green">任务/错题数据采集</div>
+          <div class="mon-item green">多维度数据统计与趋势分析</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 层间箭头 -->
+  <div class="layer-arrow"><span class="down-arrow"></span></div>
+
+  <!-- 第4层：基础能力与平台层 -->
+  <div class="layer4">
+    <div class="layer4-grid">
+      <!-- 前端应用层 -->
+      <div class="platform-box">
+        <div class="plat-title">前端应用层</div>
+        <div class="plat-body">
+          <div class="plat-item blue">学生端应用</div>
+          <div class="plat-item blue">教师端应用</div>
+          <div class="plat-item blue">管理员端应用</div>
+          <div class="plat-item">Vue 3 + Ant Design Vue</div>
+          <div class="plat-item">Vue Router 路由守卫</div>
+          <div class="plat-item">Axios HTTP客户端</div>
+          <div class="plat-item">ECharts 图表</div>
+          <div class="plat-item">Vite 构建工具</div>
+        </div>
+      </div>
+
+      <!-- 后端服务层 -->
+      <div class="platform-box">
+        <div class="plat-title">后端服务层</div>
+        <div class="plat-body">
+          <div class="plat-item orange">API网关与统一请求封装</div>
+          <div class="plat-item orange">Spring Boot 微服务</div>
+          <div class="plat-item">用户服务</div>
+          <div class="plat-item">班级服务</div>
+          <div class="plat-item">任务服务</div>
+          <div class="plat-item">单词服务</div>
+          <div class="plat-item">错题服务</div>
+          <div class="plat-item">RESTful API接口</div>
+        </div>
+      </div>
+
+      <!-- 数据存储层 -->
+      <div class="platform-box">
+        <div class="plat-title">数据存储层</div>
+        <div class="plat-body">
+          <div class="plat-item green">MySQL 8.0</div>
+          <div class="plat-item green">Redis 缓存</div>
+          <div class="plat-item green">文件存储</div>
+          <div class="plat-item">用户表</div>
+          <div class="plat-item">班级表</div>
+          <div class="plat-item">任务表</div>
+          <div class="plat-item">错题表</div>
+          <div class="plat-item">单词库表</div>
+          <div class="plat-item">Token/热点数据</div>
+          <div class="plat-item">Excel/PDF导入导出</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<!-- 左侧主体结束 -->
+
+<!-- ========== 右侧技术栈标签 ========== -->
+<div class="right-sidebar">
+
+  <div class="right-group">
+    <div class="right-group-title">── 前端技术栈 ──</div>
+    <div class="sidebar-arrow"><div class="head"></div><div class="line"></div></div>
+    <div class="sidebar-tag blue">Vue 3 框架</div>
+    <div class="sidebar-tag blue">Ant Design Vue</div>
+    <div class="sidebar-tag blue">Vue Router</div>
+    <div class="sidebar-tag blue">Axios HTTP</div>
+    <div class="sidebar-tag blue">ECharts 可视化</div>
+    <div class="sidebar-tag blue">Vite 构建工具</div>
+    <div class="sidebar-tag blue">Crypto-JS 加密</div>
+  </div>
+
+  <div class="right-group" style="margin-top:8px;">
+    <div class="right-group-title">── 后端技术栈 ──</div>
+    <div class="sidebar-arrow"><div class="head"></div><div class="line"></div></div>
+    <div class="sidebar-tag orange">Spring Boot</div>
+    <div class="sidebar-tag orange">Spring Security</div>
+    <div class="sidebar-tag orange">JWT 认证</div>
+    <div class="sidebar-tag orange">MyBatis</div>
+    <div class="sidebar-tag orange">RESTful API</div>
+  </div>
+
+  <div class="right-group" style="margin-top:8px;">
+    <div class="right-group-title">── 数据与存储 ──</div>
+    <div class="sidebar-arrow"><div class="head"></div><div class="line"></div></div>
+    <div class="sidebar-tag green">MySQL 8.0</div>
+    <div class="sidebar-tag green">Redis 缓存</div>
+    <div class="sidebar-tag green">文件存储系统</div>
+    <div class="sidebar-tag green">localStorage</div>
+  </div>
+
+  <div class="right-group" style="margin-top:8px;">
+    <div class="right-group-title">── 外部服务 ──</div>
+    <div class="sidebar-arrow"><div class="head"></div><div class="line"></div></div>
+    <div class="sidebar-tag purple">有道词典API</div>
+    <div class="sidebar-tag yellow">日志监控系统</div>
+  </div>
+
+</div>
+
+</div>
+<!-- full-layout 结束 -->
+
+</body>
+</html>

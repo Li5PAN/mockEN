@@ -1,0 +1,101 @@
+@startuml 英语学习系统架构图
+
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 11
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+
+skinparam rectangle {
+  roundCorner 5
+  FontSize 11
+}
+
+' 隐藏所有箭头上的标签
+hide stereotype
+
+title <size:18><b>英语学习系统整体业务视图</b></size>    <size:18><b>系统服务质量整合报表</b></size>\n
+
+' ==================== 第一行：整体业务视图 ====================
+
+rectangle "**前端展示层 (Vue 3 + Ant Design Vue)**" as FrontendLayer #E0ECFF {
+
+  rectangle "**学生端全程管理**" as StudentBlock #C4DAFF {
+    rectangle "单词学习" as R1 #FFFFFF
+    rectangle "收藏单词" as R2 #FFFFFF
+    rectangle "我的错题" as R3 #FFFFFF
+    rectangle "我的任务" as R4 #FFFFFF
+    rectangle "我的学情" as R5 #FFFFFF
+    rectangle "我的班级" as R6 #FFFFFF
+    rectangle "换班中心" as R7 #FFFFFF
+  }
+
+  rectangle "**教师端业务管理**" as TeacherBlock #C4DAFF {
+    rectangle "我的班级" as T1 #FFFFFF
+    rectangle "学生审核" as T2 #FFFFFF
+    rectangle "任务管理" as T3 #FFFFFF
+    rectangle "错题管理" as T4 #FFFFFF
+    rectangle "班级数据" as T5 #FFFFFF
+    rectangle "  **关联分析调度**  " as T6 #D0D0FF
+  }
+
+  rectangle "**管理员端综合分析**" as AdminBlock #C4DAFF {
+    rectangle "人员管理" as A1 #FFFFFF
+    rectangle "班级管理" as A2 #FFFFFF
+    rectangle "  系统首页  " as A3 #FFFFFF
+    rectangle "权限控制" as A4 #FFFFFF
+  }
+}
+
+' ==================== 第二行：系统资源类监控 ====================
+
+rectangle "**前端基础设施监控**" as InfraLayer #FFFFCC {
+  rectangle "Vue 3" as I1 #FFFFFF
+  rectangle "Vue Router" as I2 #FFFFFF
+  rectangle "Axios" as I3 #FFFFFF
+  rectangle "Vite" as I4 #FFFFFF
+  rectangle "ECharts" as I5 #FFFFFF
+
+  rectangle "  数据状态管理  localStorage  用户行为追踪  " as I6 #CCFF99
+}
+
+' ==================== 第三行：底层管理 ====================
+
+rectangle "**后端服务管理**" as BackendMgmt #E8E8E8 {
+  rectangle "Spring Boot\nRESTful API" as B1 #FFFFFF
+  rectangle "Spring Security\nJWT鉴权" as B2 #FFFFFF
+  rectangle "MyBatis\n数据持久化" as B3 #FFFFFF
+}
+
+' ==================== 右侧：外部系统竖排 ====================
+
+rectangle "Spring Boot后端" as EXT1 #D4E4FF
+rectangle "Spring Security" as EXT2 #D4E4FF
+rectangle "JWT认证" as EXT3 #D4E4FF
+rectangle "MySQL数据库" as EXT4 #D4E4FF
+rectangle "用户表" as EXT5 #D4E4FF
+rectangle "班级表" as EXT6 #D4E4FF
+rectangle "单词库表" as EXT7 #D4E4FF
+rectangle "学习记录表" as EXT8 #D4E4FF
+rectangle "任务表" as EXT9 #D4E4FF
+rectangle "错题表" as EXT10 #D4E4FF
+
+' ==================== 连接关系 ====================
+
+FrontendLayer -down-> InfraLayer
+InfraLayer -down-> BackendMgmt
+
+FrontendLayer -right-> EXT1 : <<HTTP>>
+InfraLayer -right-> EXT5
+BackendMgmt -right-> EXT10 : <<SQL>>
+
+EXT1 -down-> EXT2
+EXT2 -down-> EXT3
+EXT3 -down-> EXT4
+EXT4 -down-> EXT5
+EXT5 -down-> EXT6
+EXT6 -down-> EXT7
+EXT7 -down-> EXT8
+EXT8 -down-> EXT9
+EXT9 -down-> EXT10
+
+@enduml

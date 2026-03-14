@@ -241,21 +241,23 @@
               </div>
             </div>
 
-            <a-button 
-              type="text" 
-              :icon="h(isFavorite ? StarFilled : StarOutlined)"
-              @click="toggleFavorite"
-              class="favorite-btn"
-            >
-              {{ isFavorite ? '已收藏' : '收藏' }}
-            </a-button>
-          </div>
-
-          <div class="progress-footer">
-            <span class="progress-text">{{ currentIndex + 1 }} / {{ wordList.length }}</span>
-            <a-button type="primary" size="large" @click="nextWord">
-              下一个 (Enter)
-            </a-button>
+            <div class="action-buttons-row">
+              <a-button 
+                type="text" 
+                :icon="h(isFavorite ? StarFilled : StarOutlined)"
+                @click="toggleFavorite"
+                class="favorite-btn"
+              >
+                {{ isFavorite ? '已收藏' : '收藏' }}
+              </a-button>
+              <a-button 
+                type="primary" 
+                size="large"
+                @click="goNextWord"
+              >
+                下一个
+              </a-button>
+            </div>
           </div>
         </div>
 
@@ -530,6 +532,38 @@ const toggleFavorite = async () => {
     isFavorite.value = !isFavorite.value
   } catch (error) {
     message.error('操作失败，请稍后重试')
+  }
+}
+
+// 认识 - 记录正确并跳下一个
+const handleKnown = async () => {
+  await recordProgress({
+    word: currentWord.value.word,
+    mode: learningMode.value,
+    correct: true
+  })
+  goNextWord()
+}
+
+// 不认识 - 记录错误并跳下一个
+const handleUnknown = async () => {
+  await recordProgress({
+    word: currentWord.value.word,
+    mode: learningMode.value,
+    correct: false
+  })
+  goNextWord()
+}
+
+// 跳转到下一个单词
+const goNextWord = () => {
+  if (currentIndex.value < wordList.value.length - 1) {
+    currentIndex.value++
+    resetLearningState()
+  } else {
+    message.success('已完成所有单词学习！')
+    currentIndex.value = 0
+    resetLearningState()
   }
 }
 
