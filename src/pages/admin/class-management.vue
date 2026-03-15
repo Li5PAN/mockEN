@@ -15,41 +15,28 @@
             <SearchOutlined />
           </template>
         </a-input>
+        <a-button type="primary" @click="handleSearch">
+          <template #icon><SearchOutlined /></template>
+          搜索
+        </a-button>
       </a-space>
     </a-card>
 
     <!-- 标签切换 -->
     <a-card>
-      <!-- 自定义标签按钮 -->
-      <div class="tab-buttons">
-        <a-button 
-          :type="activeTab === 'review' ? 'primary' : 'default'"
-          size="large"
-          :class="['tab-button', 'review-tab', { active: activeTab === 'review' }]"
-          @click="activeTab = 'review'"
-        >
-          班级审核
-          <a-badge 
-            v-if="filteredReviewList.length > 0" 
-            :count="filteredReviewList.length" 
-            :offset="[10, -5]"
-          />
-        </a-button>
-        
-        <a-button 
-          :type="activeTab === 'management' ? 'primary' : 'default'"
-          size="large"
-          :class="['tab-button', 'management-tab', { active: activeTab === 'management' }]"
-          @click="activeTab = 'management'"
-        >
-          班级管理
-        </a-button>
-      </div>
-
-      <!-- 内容区域 -->
-      <div class="tab-content">
-        <!-- 班级审核 -->
-        <div v-show="activeTab === 'review'">
+      <a-tabs v-model:activeKey="activeTab">
+        <a-tab-pane key="review">
+          <template #tab>
+            <span>
+              班级审核
+              <a-badge 
+                v-if="filteredReviewList.length > 0" 
+                :count="filteredReviewList.length" 
+                :offset="[6, -2]"
+                :number-style="{ backgroundColor: '#fa8c16' }"
+              />
+            </span>
+          </template>
           <a-table 
             :columns="reviewColumns" 
             :data-source="filteredReviewList" 
@@ -77,10 +64,9 @@
           
           <!-- 空状态 -->
           <a-empty v-if="filteredReviewList.length === 0" description="暂无待审核班级" />
-        </div>
+        </a-tab-pane>
 
-        <!-- 班级管理 -->
-        <div v-show="activeTab === 'management'">
+        <a-tab-pane key="management" tab="班级管理">
           <a-table 
             :columns="managementColumns" 
             :data-source="filteredManagementList" 
@@ -103,8 +89,8 @@
           
           <!-- 空状态 -->
           <a-empty v-if="filteredManagementList.length === 0" description="暂无班级数据" />
-        </div>
-      </div>
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
   </div>
 </template>
@@ -153,13 +139,13 @@ const reviewColumns = [
     width: 180
   },
   {
-    title: '当前学生人数',
-    dataIndex: 'studentCount',
-    key: 'studentCount',
-    width: 100
+    title: '班级限定人数',
+    dataIndex: 'maxStudents',
+    key: 'maxStudents',
+    width: 120
   },
   {
-    title: '进行中任务数',
+    title: '班级任务数',
     dataIndex: 'taskCount',
     key: 'taskCount',
     width: 120
@@ -299,6 +285,9 @@ const handleDelete = (record) => {
   })
 }
 
+// 随机生成60-100的整数
+const randomTaskCount = () => Math.floor(Math.random() * 41) + 60
+
 // 加载数据
 const loadData = () => {
   // 模拟班级审核数据
@@ -309,8 +298,8 @@ const loadData = () => {
       classLevel: 'A',
       teacher: '张老师',
       createTime: '2024-02-10 10:30',
-      studentCount: 0,
-      taskCount: 0
+      maxStudents: 40,
+      taskCount: randomTaskCount()
     },
     {
       id: 2,
@@ -318,8 +307,8 @@ const loadData = () => {
       classLevel: 'B',
       teacher: '李老师',
       createTime: '2024-02-10 14:20',
-      studentCount: 0,
-      taskCount: 0
+      maxStudents: 45,
+      taskCount: randomTaskCount()
     },
     {
       id: 3,
@@ -327,8 +316,8 @@ const loadData = () => {
       classLevel: 'C',
       teacher: '王老师',
       createTime: '2024-02-11 09:15',
-      studentCount: 0,
-      taskCount: 0
+      maxStudents: 50,
+      taskCount: randomTaskCount()
     }
   ]
 

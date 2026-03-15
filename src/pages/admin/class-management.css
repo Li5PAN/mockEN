@@ -2,84 +2,14 @@
   padding: 0;
 }
 
-/* 标签按钮样式 */
-.tab-buttons {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.tab-button {
-  min-width: 140px;
-  height: 48px;
-  font-size: 16px;
-  font-weight: 500;
-  border-radius: 12px;
-  transition: all 0.3s;
-  position: relative;
-}
-
-/* 班级审核按钮 - 橙色主题 */
-.tab-button.review-tab {
-  border: 2px solid #ff7a45;
-  color: #ff7a45;
-}
-
-.tab-button.review-tab:hover {
-  background: #fff7e6;
-  border-color: #ff7a45;
-  color: #ff7a45;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 122, 69, 0.3);
-}
-
-.tab-button.review-tab.active {
-  background: linear-gradient(135deg, #ff7a45 0%, #ff9c6e 100%);
-  border-color: #ff7a45;
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(255, 122, 69, 0.4);
-}
-
-/* 班级管理按钮 - 蓝色主题 */
-.tab-button.management-tab {
-  border: 2px solid #1890ff;
-  color: #1890ff;
-}
-
-.tab-button.management-tab:hover {
-  background: #e6f7ff;
-  border-color: #1890ff;
-  color: #1890ff;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
-}
-
-.tab-button.management-tab.active {
-  background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
-  border-color: #1890ff;
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
-}
-
-.tab-content {
-  margin-top: 16px;
+:deep(.ant-tabs-nav) {
+  margin-bottom: 16px;
 }
 
 :deep(.ant-table) {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 :deep(.ant-tag) {
   margin-right: 8px;
-}
-
-@media (max-width: 768px) {
-  .tab-buttons {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .tab-button {
-    width: 100%;
-  }
 }

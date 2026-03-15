@@ -511,6 +511,102 @@ const loadData = () => {
       errorCount: 18,
       classLevel: 'B',
       lastErrorTime: '2024-02-09 10:20'
+    },
+    {
+      id: 7,
+      question: 'The book is ___ the table.',
+      questionType: 'fillBlank',
+      correctAnswer: 'on',
+      errorCount: 9,
+      classLevel: 'D',
+      lastErrorTime: '2024-02-10 08:45'
+    },
+    {
+      id: 8,
+      question: '拼写单词：重要的',
+      questionType: 'spelling',
+      correctAnswer: 'important',
+      errorCount: 25,
+      classLevel: 'C',
+      lastErrorTime: '2024-02-10 14:20'
+    },
+    {
+      id: 9,
+      question: 'Which sentence is correct?',
+      questionType: 'choice',
+      options: ['He go to school.', 'He goes to school.', 'He going to school.', 'He gone to school.'],
+      correctIndexes: [1],
+      correctAnswer: 'B',
+      errorCount: 14,
+      classLevel: 'A',
+      lastErrorTime: '2024-02-11 09:30'
+    },
+    {
+      id: 10,
+      question: 'They ___ playing football now.',
+      questionType: 'fillBlank',
+      correctAnswer: 'are',
+      errorCount: 7,
+      classLevel: 'B',
+      lastErrorTime: '2024-02-11 11:15'
+    },
+    {
+      id: 11,
+      question: '拼写单词：经验，体验',
+      questionType: 'spelling',
+      correctAnswer: 'experience',
+      errorCount: 30,
+      classLevel: 'A',
+      lastErrorTime: '2024-02-12 10:00'
+    },
+    {
+      id: 12,
+      question: 'Select the past tense of "eat".',
+      questionType: 'choice',
+      options: ['eated', 'ate', 'eaten', 'eating'],
+      correctIndexes: [1],
+      correctAnswer: 'B',
+      errorCount: 11,
+      classLevel: 'B',
+      lastErrorTime: '2024-02-12 15:40'
+    },
+    {
+      id: 13,
+      question: 'I have ___ finished my homework.',
+      questionType: 'fillBlank',
+      correctAnswer: 'already',
+      errorCount: 16,
+      classLevel: 'C',
+      lastErrorTime: '2024-02-13 08:20'
+    },
+    {
+      id: 14,
+      question: 'Which words are adjectives?',
+      questionType: 'choice',
+      options: ['quickly', 'beautiful', 'happy', 'run', 'tall'],
+      correctIndexes: [1, 2, 4],
+      correctAnswer: 'B,C,E',
+      errorCount: 20,
+      classLevel: 'A',
+      lastErrorTime: '2024-02-13 13:50'
+    },
+    {
+      id: 15,
+      question: '拼写单词：环境',
+      questionType: 'spelling',
+      correctAnswer: 'environment',
+      errorCount: 28,
+      classLevel: 'B',
+      lastErrorTime: '2024-02-14 09:10'
+    },
+    {
+      id: 16,
+      question: 'She ___ not like coffee.',
+      questionType: 'fillBlank',
+      correctAnswer: 'does',
+      errorCount: 6,
+      classLevel: 'D',
+      lastErrorTime: '2024-02-14 16:30'
     }
   ]
 }
