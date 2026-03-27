@@ -42,6 +42,7 @@
   position: relative;
   z-index: 1;
   background: rgba(255, 255, 255, 0.7);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   padding: 20px 28px;
   border-radius: 16px;
@@ -70,6 +71,7 @@
 .word-card-item {
   height: 100%;
   background: rgba(255, 255, 255, 0.85);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -143,6 +145,7 @@
 
 .word-card {
   background: rgba(255, 255, 255, 0.88);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   padding: 48px;
   border-radius: 20px;
@@ -196,6 +199,7 @@
   margin-top: 28px;
   padding: 18px 28px;
   background: rgba(255, 255, 255, 0.7);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
@@ -205,6 +209,7 @@
 .progress-text {
   font-size: 16px;
   color: #888;
+  margin-right: 6px;
 }
 
 /* 填空模式 */

@@ -68,7 +68,7 @@
                     type="text" 
                     danger
                     size="small"
-                    @click="removeFavorite(word.word)"
+                    @click="removeFavorite(word)"
                   >
                     <DeleteOutlined />
                   </a-button>
@@ -144,7 +144,7 @@
             >
               <template #description>
                 <div v-if="!isCorrect">
-                  <p>正确答案：{{ currentWord.word }}</p>
+                  <p>正确答案：{{ correctAnswer }}</p>
                   <p>你的答案：{{ userInput }}</p>
                 </div>
               </template>
@@ -208,7 +208,7 @@
             >
               <template #description>
                 <div v-if="!isCorrect">
-                  <p>正确答案：{{ currentWord.word }}</p>
+                  <p>正确答案：{{ correctAnswer }}</p>
                 </div>
               </template>
             </a-alert>
@@ -244,7 +244,7 @@ import {
   DeleteOutlined, 
   SoundOutlined 
 } from '@ant-design/icons-vue'
-import { getFavoriteWords, removeFromFavorites } from '../../services/wordService'
+import { getFavoriteWords, toggleWordCollect, matchWordAnswer } from '../../services/wordService'
 
 const router = useRouter()
 
@@ -259,6 +259,7 @@ const currentIndex = ref(0)
 const userInput = ref('')
 const showResult = ref(false)
 const isCorrect = ref(false)
+const correctAnswer = ref('') // 保存正确答案
 const fillInputs = ref({})
 
 // 计算属性
@@ -274,8 +275,14 @@ const filteredWords = computed(() => {
 
 const currentWord = computed(() => filteredWords.value[currentIndex.value] || {})
 
-const displayWord = computed(() => {
-  if (!currentWord.value.word) return []
+// 填空显示（进入新单词时初始化一次）
+const displayWord = ref([])
+
+const initFillMode = () => {
+  if (!currentWord.value.word) {
+    displayWord.value = []
+    return
+  }
   const word = currentWord.value.word
   const result = []
   const blankCount = Math.ceil(word.length / 3)
@@ -289,8 +296,8 @@ const displayWord = computed(() => {
     result.push(blankPositions.has(i) ? '_' : word[i])
   }
   
-  return result
-})
+  displayWord.value = result
+}
 
 // 方法
 const goBack = () => {
@@ -309,6 +316,9 @@ const loadFavorites = async () => {
     
     if (words.length === 0) {
       message.info('暂无收藏单词')
+    } else {
+      // 初始化填空模式
+      initFillMode()
     }
   } catch (error) {
     console.error('加载收藏单词失败:', error)
@@ -320,7 +330,7 @@ const loadFavorites = async () => {
 
 const removeFavorite = async (word) => {
   try {
-    await removeFromFavorites(word)
+    await toggleWordCollect(word.wordId, false)
     message.success('已取消收藏')
     await loadFavorites()
   } catch (error) {
@@ -346,31 +356,69 @@ const playAudio = (audioUrl) => {
   }
 }
 
-const checkSpelling = () => {
-  if (!userInput.value) return
-  
-  isCorrect.value = userInput.value.toLowerCase() === currentWord.value.word.toLowerCase()
-  showResult.value = true
-  
-  if (isCorrect.value) {
-    setTimeout(() => {
-      nextWord()
-    }, 1500)
+const checkSpelling = async () => {
+  if (!userInput.value || !currentWord.value.wordId) return
+
+  try {
+    const res = await matchWordAnswer({
+      wordId: currentWord.value.wordId,
+      userAnswer: userInput.value,
+      matchType: 2 // 2=单词拼写
+    })
+    
+    // 后端返回 isCorrect（驼峰命名）
+    const backendCorrect = res.data?.isCorrect ?? res.correct
+    // 如果后端返回的正确答案与用户答案一致（忽略大小写），则判定为正确
+    if (res.data?.correctAnswer && res.data.correctAnswer.toLowerCase() === userInput.value.toLowerCase().trim()) {
+      isCorrect.value = true
+    } else {
+      isCorrect.value = backendCorrect
+    }
+    correctAnswer.value = res.data?.correctAnswer || res.correctAnswer || currentWord.value.word
+    showResult.value = true
+
+    if (isCorrect.value) {
+      setTimeout(() => {
+        nextWord()
+      }, 1500)
+    }
+  } catch (error) {
+    message.error('验证失败，请稍后重试')
   }
 }
 
-const checkFill = () => {
+const checkFill = async () => {
+  if (!currentWord.value.wordId) return
+  
   const userAnswer = displayWord.value.map((char, index) => {
     return char === '_' ? (fillInputs.value[index] || '') : char
   }).join('')
-  
-  isCorrect.value = userAnswer.toLowerCase() === currentWord.value.word.toLowerCase()
-  showResult.value = true
-  
-  if (isCorrect.value) {
-    setTimeout(() => {
-      nextWord()
-    }, 1500)
+
+  try {
+    const res = await matchWordAnswer({
+      wordId: currentWord.value.wordId,
+      userAnswer: userAnswer,
+      matchType: 5 // 5=填空题
+    })
+    
+    // 后端返回 isCorrect（驼峰命名）
+    const backendCorrect = res.data?.isCorrect ?? res.correct
+    // 如果后端返回的正确答案与用户答案一致（忽略大小写），则判定为正确
+    if (res.data?.correctAnswer && res.data.correctAnswer.toLowerCase() === userAnswer.toLowerCase().trim()) {
+      isCorrect.value = true
+    } else {
+      isCorrect.value = backendCorrect
+    }
+    correctAnswer.value = res.data?.correctAnswer || res.correctAnswer || currentWord.value.word
+    showResult.value = true
+
+    if (isCorrect.value) {
+      setTimeout(() => {
+        nextWord()
+      }, 1500)
+    }
+  } catch (error) {
+    message.error('验证失败，请稍后重试')
   }
 }
 
@@ -389,7 +437,10 @@ const resetPracticeState = () => {
   userInput.value = ''
   showResult.value = false
   isCorrect.value = false
+  correctAnswer.value = ''
   fillInputs.value = {}
+  // 重新初始化填空模式（生成新的随机空白）
+  initFillMode()
 }
 
 const handleFillInput = (index) => {

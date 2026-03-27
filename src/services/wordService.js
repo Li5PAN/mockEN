@@ -1,6 +1,8 @@
 /**
- * 单词学习服务 - 使用模拟数据
+ * 单词学习页面接口
  */
+
+import request from '../utils/request'
 
 // 模拟单词数据库
 const MOCK_WORDS_DATA = {
@@ -280,6 +282,68 @@ export async function getStudentWords(options = {}) {
 }
 
 /**
+ * 获取学生单词列表（调用后端API）
+ * @param {Object} params - 查询参数
+ * @param {string} params.englishWord - 英文单词(模糊搜索)
+ * @param {string} params.chineseMeaning - 中文释义(模糊搜索)
+ * @param {number} params.pageNum - 页码，默认1
+ * @param {number} params.pageSize - 每页条数，默认10
+ * @returns {Promise<Object>} - 返回分页数据 { total: number, records: Array }
+ */
+export async function fetchStudentWords(params = {}) {
+  const { englishWord, chineseMeaning, pageNum = 1, pageSize = 10 } = params
+  
+  const queryParams = {}
+  if (englishWord) queryParams.englishWord = englishWord
+  if (chineseMeaning) queryParams.chineseMeaning = chineseMeaning
+  queryParams.pageNum = pageNum
+  queryParams.pageSize = pageSize
+  
+  console.log('请求参数:', queryParams)
+  
+  // request 响应拦截器已经返回 response.data，所以这里 response 就是后端返回的数据
+  const res = await request({
+    url: '/student/words',
+    method: 'GET',
+    params: queryParams
+  })
+  
+  console.log('后端返回数据:', res)
+  
+  // 如果返回数据为空，抛出错误
+  if (!res) {
+    throw new Error('服务器返回数据为空')
+  }
+  
+  // 转换后端数据格式为前端所需格式
+  // 后端返回: { total: 10, rows: [...], code: 200, msg: '...' }
+  // 需要转换为: { total: 10, records: [...] }
+  return {
+    total: res.total || 0,
+    records: (res.rows || []).map(item => ({
+      word: item.englishWord,
+      wordId: item.wordId,
+      ukPhonetic: item.phoneticUk || '',
+      usPhonetic: item.phoneticUs || '',
+      ukSpeech: item.phoneticUk ? `https://dict.youdao.com/dictvoice?audio=${item.englishWord}&type=1` : '',
+      usSpeech: item.phoneticUs ? `https://dict.youdao.com/dictvoice?audio=${item.englishWord}&type=2` : '',
+      meanings: item.chineseMeaning ? [item.chineseMeaning] : [],
+      // 注意：wordType 已包含在 meanings 中，为避免重复显示，不在此处设置
+      wordForms: [],
+      examples: item.exampleSentence ? [{
+        sentence: item.exampleSentence,
+        translation: item.exampleTranslation || '',
+        sentenceSpeech: ''
+      }] : [],
+      webMeanings: [],
+      isCollected: item.isCollected || false,
+      // 保留原始数据
+      _rawData: item
+    }))
+  }
+}
+
+/**
  * 获取任务的单词列表
  * @param {string} taskId - 任务ID
  * @returns {Promise<Array>} - 返回单词数据数组
@@ -372,50 +436,101 @@ export async function searchWord(keyword) {
 
 /**
  * 获取收藏的单词列表
+ * @param {Object} params - 查询参数
+ * @param {string} params.englishWord - 英文单词(模糊搜索，可选)
+ * @param {number} params.pageNum - 页码，默认1
+ * @param {number} params.pageSize - 每页条数，默认100
  * @returns {Promise<Array>} - 返回收藏的单词列表
  */
-export async function getFavoriteWords() {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 300))
+export async function getFavoriteWords(params = {}) {
+  const { englishWord, pageNum = 1, pageSize = 100 } = params
   
-  // 模拟返回收藏的单词（带完整详情）
-  const favoriteWordKeys = ['hello', 'apple', 'study', 'learn']
-  const favoriteWords = favoriteWordKeys.map(word => getWordData(word))
+  console.log('获取收藏单词列表，参数:', { englishWord, pageNum, pageSize })
   
-  console.log('获取收藏单词列表:', favoriteWords)
-  return favoriteWords
+  const queryParams = {
+    pageNum,
+    pageSize
+  }
+  if (englishWord) {
+    queryParams.englishWord = englishWord
+  }
+  
+  const res = await request({
+    url: '/student/words/collections',
+    method: 'GET',
+    params: queryParams
+  })
+  
+  console.log('收藏单词列表返回:', res)
+  
+  // 转换后端数据格式为前端所需格式
+  const records = res.rows || res.records || []
+  return records.map(item => ({
+    word: item.englishWord,
+    wordId: item.wordId,
+    ukPhonetic: item.phoneticUk || '',
+    usPhonetic: item.phoneticUs || '',
+    ukSpeech: item.phoneticUk ? `https://dict.youdao.com/dictvoice?audio=${item.englishWord}&type=1` : '',
+    usSpeech: item.phoneticUs ? `https://dict.youdao.com/dictvoice?audio=${item.englishWord}&type=2` : '',
+    meanings: item.chineseMeaning ? [item.chineseMeaning] : [],
+    wordForms: [],
+    examples: item.exampleSentence ? [{
+      sentence: item.exampleSentence,
+      translation: item.exampleTranslation || '',
+      sentenceSpeech: ''
+    }] : [],
+    webMeanings: [],
+    isCollected: true
+  }))
 }
 
 /**
- * 添加单词到收藏
- * @param {string} word - 单词
+ * 收藏/取消收藏单词
+ * @param {number} wordId - 单词ID
+ * @param {boolean} collect - true-收藏，false-取消收藏
  * @returns {Promise<Object>} - 返回操作结果
  */
-export async function addToFavorites(word) {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 200))
+export async function toggleWordCollect(wordId, collect) {
+  console.log(`${collect ? '收藏' : '取消收藏'}单词:`, wordId)
   
-  console.log('收藏单词:', word)
-  return {
-    success: true,
-    message: '收藏成功'
-  }
+  const res = await request({
+    url: '/student/words/collect',
+    method: 'POST',
+    params: {
+      wordId,
+      collect
+    }
+  })
+  
+  console.log('收藏操作结果:', res)
+  return res
 }
 
 /**
- * 从收藏中移除单词
- * @param {string} word - 单词
- * @returns {Promise<Object>} - 返回操作结果
+ * 单词答案匹配验证
+ * @param {Object} params - 验证参数
+ * @param {number} params.wordId - 单词ID
+ * @param {string} params.userAnswer - 用户答案
+ * @param {number} params.matchType - 匹配类型: 1=单词默写 2=单词拼写 3=英译中 4=中译英 5=填空题
+ * @returns {Promise<Object>} - 返回匹配结果 { correct: boolean, correctAnswer?: string }
  */
-export async function removeFromFavorites(word) {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 200))
+export async function matchWordAnswer(params) {
+  const { wordId, userAnswer, matchType } = params
   
-  console.log('取消收藏单词:', word)
-  return {
-    success: true,
-    message: '取消收藏成功'
-  }
+  console.log('单词匹配验证:', { wordId, userAnswer, matchType })
+  
+  const res = await request({
+    url: '/business/words/match',
+    method: 'POST',
+    data: {
+      wordId,
+      userAnswer,
+      matchType
+    }
+  })
+  
+  console.log('匹配结果:', res)
+  return res
 }
 
 /**

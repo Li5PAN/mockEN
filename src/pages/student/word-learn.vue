@@ -287,7 +287,7 @@
               >
                 <template #description>
                   <div v-if="!isCorrect">
-                    <p>正确答案：{{ currentWord.word }}</p>
+                    <p>正确答案：{{ correctAnswer }}</p>
                     <p>你的答案：{{ userInput }}</p>
                   </div>
                 </template>
@@ -349,7 +349,7 @@
               >
                 <template #description>
                   <div v-if="!isCorrect">
-                    <p>正确答案：{{ currentWord.word }}</p>
+                    <p>正确答案：{{ correctAnswer }}</p>
                   </div>
                 </template>
               </a-alert>
@@ -382,7 +382,7 @@ import { ref, computed, onMounted, onUnmounted, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { SoundOutlined, StarOutlined, StarFilled, QuestionCircleOutlined } from '@ant-design/icons-vue'
-import { searchWord, getStudentWordsWithDetails, addToFavorites, removeFromFavorites, recordProgress } from '../../services/wordService'
+import { searchWord, getStudentWordsWithDetails, toggleWordCollect, recordProgress, fetchStudentWords, matchWordAnswer } from '../../services/wordService'
 
 const router = useRouter()
 
@@ -398,7 +398,9 @@ const isSearchMode = computed(() => !!searchResult.value)
 
 // 单词列表（从服务动态加载）
 const wordList = ref([])
+const allWords = ref([]) // 保存所有获取到的单词
 const isInitialLoading = ref(true) // 初始加载标识
+const learnedCount = ref(0) // 已学习单词数
 
 const currentIndex = ref(0)
 const currentWord = computed(() => wordList.value[currentIndex.value] || {})
@@ -410,11 +412,18 @@ const isFavorite = ref(false)
 const userInput = ref('')
 const showResult = ref(false)
 const isCorrect = ref(false)
+const correctAnswer = ref('') // 保存正确答案
 
 // 填空模式
 const fillInputs = ref({})
-const displayWord = computed(() => {
-  if (!currentWord.value.word) return []
+// 保存当前显示的单词（带随机空白），进入新单词时初始化一次
+const displayWord = ref([])
+
+const initFillMode = () => {
+  if (!currentWord.value.word) {
+    displayWord.value = []
+    return
+  }
   const word = currentWord.value.word
   const result = []
   const blankCount = Math.ceil(word.length / 3)
@@ -428,8 +437,8 @@ const displayWord = computed(() => {
     result.push(blankPositions.has(i) ? '_' : word[i])
   }
   
-  return result
-})
+  displayWord.value = result
+}
 
 // 搜索单词
 const handleSearch = async () => {
@@ -442,14 +451,45 @@ const handleSearch = async () => {
   searchError.value = ''
   searchResult.value = null
 
-  const result = await searchWord(searchKeyword.value.trim())
-  
-  searching.value = false
-
-  if (result.success) {
-    searchResult.value = result.data
-  } else {
-    searchError.value = result.message || '查询失败，请稍后重试'
+  try {
+    const keyword = searchKeyword.value.trim()
+    
+    // 判断输入的是英文还是中文
+    const isEnglish = /^[a-zA-Z]/.test(keyword)
+    const isChinese = /[\u4e00-\u9fa5]/.test(keyword)
+    
+    // 根据输入内容选择搜索参数
+    const searchParams = {}
+    if (isEnglish) {
+      searchParams.englishWord = keyword
+    } else if (isChinese) {
+      searchParams.chineseMeaning = keyword
+    } else {
+      // 其他情况，两个参数都带上
+      searchParams.englishWord = keyword
+    }
+    
+    // 调用后端API进行查询
+    const result = await fetchStudentWords(searchParams)
+    console.log('搜索结果:', result)
+    
+    if (result.records && result.records.length > 0) {
+      // 如果有多个结果，显示第一个
+      searchResult.value = result.records[0]
+      console.log('设置 searchResult:', searchResult.value)
+      if (result.records.length > 1) {
+        message.success(`找到 ${result.records.length} 个结果，显示第1个`)
+      } else {
+        message.success('查询成功')
+      }
+    } else {
+      searchError.value = `未找到"${keyword}"相关的单词`
+    }
+  } catch (error) {
+    console.error('搜索失败:', error)
+    searchError.value = '搜索失败，请稍后重试'
+  } finally {
+    searching.value = false
   }
 }
 
@@ -458,6 +498,8 @@ const handleClear = () => {
   searchKeyword.value = ''
   searchResult.value = null
   searchError.value = ''
+  // 重新加载单词列表
+  loadWords()
 }
 
 // 从搜索结果开始学习
@@ -519,17 +561,14 @@ const playAudio = (audioUrl) => {
 
 // 切换收藏
 const toggleFavorite = async () => {
-  const word = isSearchMode.value ? searchResult.value.word : currentWord.value.word
+  const wordData = isSearchMode.value ? searchResult.value : currentWord.value
+  const wordId = wordData.wordId
+  const word = wordData.word
   
   try {
-    if (isFavorite.value) {
-      await removeFromFavorites(word)
-      message.success('取消收藏')
-    } else {
-      await addToFavorites(word)
-      message.success('收藏成功')
-    }
+    await toggleWordCollect(wordId, !isFavorite.value)
     isFavorite.value = !isFavorite.value
+    message.success(isFavorite.value ? '收藏成功' : '取消收藏')
   } catch (error) {
     message.error('操作失败，请稍后重试')
   }
@@ -559,10 +598,20 @@ const handleUnknown = async () => {
 const goNextWord = () => {
   if (currentIndex.value < wordList.value.length - 1) {
     currentIndex.value++
+    // 增加已学习计数
+    learnedCount.value++
     resetLearningState()
+    
+    // 每学习20个单词显示提示
+    if (learnedCount.value > 0 && learnedCount.value % 20 === 0) {
+      message.success(`已学习 ${learnedCount.value} 个单词，继续加油！`)
+    }
   } else {
-    message.success('已完成所有单词学习！')
+    message.success(`恭喜完成所有 ${learnedCount.value} 个单词学习！`)
     currentIndex.value = 0
+    // 重新随机打乱单词顺序
+    wordList.value = shuffleArray([...allWords.value]).slice(0, Math.min(100, allWords.value.length))
+    learnedCount.value = 0
     resetLearningState()
   }
 }
@@ -580,10 +629,20 @@ const nextWord = async () => {
 
   if (currentIndex.value < wordList.value.length - 1) {
     currentIndex.value++
+    // 增加已学习计数
+    learnedCount.value++
     resetLearningState()
+    
+    // 每学习20个单词显示提示
+    if (learnedCount.value > 0 && learnedCount.value % 20 === 0) {
+      message.success(`已学习 ${learnedCount.value} 个单词，继续加油！`)
+    }
   } else {
-    message.success('已完成所有单词学习！')
+    message.success(`恭喜完成所有 ${learnedCount.value} 个单词学习！`)
     currentIndex.value = 0
+    // 重新随机打乱单词顺序
+    wordList.value = shuffleArray([...allWords.value]).slice(0, Math.min(100, allWords.value.length))
+    learnedCount.value = 0
     resetLearningState()
   }
 }
@@ -593,37 +652,78 @@ const resetLearningState = () => {
   userInput.value = ''
   showResult.value = false
   isCorrect.value = false
+  correctAnswer.value = ''
   fillInputs.value = {}
+  // 重新初始化填空模式（生成新的随机空白）
+  initFillMode()
   isFavorite.value = false
 }
 
 // 检查拼写
-const checkSpelling = () => {
-  if (!userInput.value) return
-  
-  isCorrect.value = userInput.value.toLowerCase() === currentWord.value.word.toLowerCase()
-  showResult.value = true
-  
-  if (isCorrect.value) {
-    setTimeout(() => {
-      nextWord()
-    }, 1500)
+const checkSpelling = async () => {
+  if (!userInput.value || !currentWord.value.wordId) return
+
+  try {
+    const res = await matchWordAnswer({
+      wordId: currentWord.value.wordId,
+      userAnswer: userInput.value,
+      matchType: 2 // 2=单词拼写
+    })
+    
+    // 后端返回 isCorrect（驼峰命名）
+    const backendCorrect = res.data?.isCorrect ?? res.correct
+    // 如果后端返回的正确答案与用户答案一致（忽略大小写），则判定为正确
+    if (res.data?.correctAnswer && res.data.correctAnswer.toLowerCase() === userInput.value.toLowerCase().trim()) {
+      isCorrect.value = true
+    } else {
+      isCorrect.value = backendCorrect
+    }
+    correctAnswer.value = res.data?.correctAnswer || res.correctAnswer || currentWord.value.word
+    showResult.value = true
+
+    if (isCorrect.value) {
+      setTimeout(() => {
+        nextWord()
+      }, 1500)
+    }
+  } catch (error) {
+    message.error('验证失败，请稍后重试')
   }
 }
 
 // 检查填空
-const checkFill = () => {
+const checkFill = async () => {
+  if (!currentWord.value.wordId) return
+  
   const userAnswer = displayWord.value.map((char, index) => {
     return char === '_' ? (fillInputs.value[index] || '') : char
   }).join('')
-  
-  isCorrect.value = userAnswer.toLowerCase() === currentWord.value.word.toLowerCase()
-  showResult.value = true
-  
-  if (isCorrect.value) {
-    setTimeout(() => {
-      nextWord()
-    }, 1500)
+
+  try {
+    const res = await matchWordAnswer({
+      wordId: currentWord.value.wordId,
+      userAnswer: userAnswer,
+      matchType: 5 // 5=填空题
+    })
+    
+    // 后端返回 isCorrect（驼峰命名）
+    const backendCorrect = res.data?.isCorrect ?? res.correct
+    // 如果后端返回的正确答案与用户答案一致（忽略大小写），则判定为正确
+    if (res.data?.correctAnswer && res.data.correctAnswer.toLowerCase() === userAnswer.toLowerCase().trim()) {
+      isCorrect.value = true
+    } else {
+      isCorrect.value = backendCorrect
+    }
+    correctAnswer.value = res.data?.correctAnswer || res.correctAnswer || currentWord.value.word
+    showResult.value = true
+
+    if (isCorrect.value) {
+      setTimeout(() => {
+        nextWord()
+      }, 1500)
+    }
+  } catch (error) {
+    message.error('验证失败，请稍后重试')
   }
 }
 
@@ -650,20 +750,57 @@ const loadWords = async () => {
   isInitialLoading.value = true
   
   try {
-    // 获取学生的学习单词（带详细信息）
-    const words = await getStudentWordsWithDetails({ limit: 10 })
+    // 获取学生的学习单词（调用后端API）
+    // 先获取较大数量，确保有足够的单词可选
+    const result = await fetchStudentWords({ 
+      pageNum: 1, 
+      pageSize: 100 
+    })
     
-    wordList.value = words
+    // 保存所有获取到的单词
+    allWords.value = result.records || []
     
-    if (words.length === 0) {
+    // 随机选取100个单词（或全部，如果不足100个）
+    const selectedWords = shuffleArray([...allWords.value]).slice(0, 100)
+    wordList.value = selectedWords
+    
+    // 重置学习计数
+    learnedCount.value = 0
+    currentIndex.value = 0
+    // 初始化填空模式
+    initFillMode()
+    
+    if (wordList.value.length === 0) {
       message.warning('暂无学习单词，请联系老师分配学习任务')
     }
   } catch (error) {
     console.error('加载单词失败:', error)
-    message.error('加载单词失败，请刷新页面重试')
+    // 如果API调用失败，使用模拟数据作为降级方案
+    try {
+      const mockWords = await getStudentWordsWithDetails({ limit: 100 })
+      allWords.value = mockWords
+      const selectedWords = shuffleArray([...mockWords]).slice(0, 100)
+      wordList.value = selectedWords
+      learnedCount.value = 0
+      currentIndex.value = 0
+      initFillMode()
+      message.warning('使用本地数据，请检查网络连接')
+    } catch (mockError) {
+      console.error('模拟数据加载也失败:', mockError)
+      message.error('加载单词失败，请刷新页面重试')
+    }
   } finally {
     isInitialLoading.value = false
   }
+}
+
+// 数组随机洗牌
+const shuffleArray = (array) => {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]]
+  }
+  return array
 }
 
 onMounted(() => {
