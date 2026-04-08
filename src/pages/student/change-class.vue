@@ -63,35 +63,40 @@
             <a-button 
               :type="selectedLevel === 'A' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'A'"
+              @click="handleLevelChange('A')"
             >
               A级
             </a-button>
             <a-button 
               :type="selectedLevel === 'B' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'B'"
+              @click="handleLevelChange('B')"
             >
               B级
             </a-button>
             <a-button 
               :type="selectedLevel === 'C' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'C'"
+              @click="handleLevelChange('C')"
             >
               C级
             </a-button>
             <a-button 
               :type="selectedLevel === 'D' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'D'"
+              @click="handleLevelChange('D')"
             >
               D级
             </a-button>
           </a-space>
         </div>
 
-        <a-row :gutter="[16, 16]">
+        <!-- 加载状态 -->
+        <div v-if="loading" style="text-align: center; padding: 40px">
+          <a-spin size="large" />
+        </div>
+
+        <a-row v-else :gutter="[16, 16]">
           <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="cls in filteredClasses" :key="cls.id">
             <a-card 
               hoverable 
@@ -155,6 +160,7 @@
     <a-modal
       v-model:open="changeModalVisible"
       title="确认换班申请"
+      :confirm-loading="submitLoading"
       @ok="confirmChange"
       @cancel="changeModalVisible = false"
     >
@@ -181,54 +187,98 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
+import { getMyClassInfo, getClassList, applyChangeClass as applyChangeClassApi } from '@/services/myClass'
 
 const router = useRouter()
 
 // 选中的等级
 const selectedLevel = ref('B')
 
-// 当前班级信息（实际应从后端获取）
+// 加载状态
+const loading = ref(false)
+
+// 当前班级信息
 const currentClass = ref({
-  id: 8,
-  level: 'B',
-  name: 'B2班',
-  teacher: '张老师',
-  studentCount: 45,
-  avgCompletionRate: 82,
-  myCompletionRate: 100, // 改为 100 可测试换班功能
-  totalTasks: 100,
-  completedTasks: 100
+  id: null,
+  level: '',
+  name: '',
+  teacher: '',
+  studentCount: 0,
+  avgCompletionRate: 0,
+  myCompletionRate: 0,
+  totalTasks: 0,
+  completedTasks: 0
 })
 
-// 所有班级数据（实际应从后端获取）
-const allClasses = ref([
-  // A级班级
-  { id: 1, level: 'A', name: 'A1班', teacher: '王老师', studentCount: 30, avgCompletionRate: 95, totalTasks: 120 },
-  { id: 2, level: 'A', name: 'A2班', teacher: '李老师', studentCount: 28, avgCompletionRate: 93, totalTasks: 120 },
-  { id: 3, level: 'A', name: 'A3班', teacher: '赵老师', studentCount: 32, avgCompletionRate: 94, totalTasks: 120 },
-  
-  // B级班级
-  { id: 7, level: 'B', name: 'B1班', teacher: '刘老师', studentCount: 35, avgCompletionRate: 85, totalTasks: 100 },
-  { id: 8, level: 'B', name: 'B2班', teacher: '张老师', studentCount: 45, avgCompletionRate: 82, totalTasks: 100 },
-  { id: 9, level: 'B', name: 'B3班', teacher: '陈老师', studentCount: 38, avgCompletionRate: 84, totalTasks: 100 },
-  { id: 10, level: 'B', name: 'B4班', teacher: '孙老师', studentCount: 40, avgCompletionRate: 83, totalTasks: 100 },
-  
-  // C级班级
-  { id: 13, level: 'C', name: 'C1班', teacher: '周老师', studentCount: 40, avgCompletionRate: 78, totalTasks: 80 },
-  { id: 14, level: 'C', name: 'C2班', teacher: '吴老师', studentCount: 42, avgCompletionRate: 76, totalTasks: 80 },
-  { id: 15, level: 'C', name: 'C3班', teacher: '郑老师', studentCount: 38, avgCompletionRate: 77, totalTasks: 80 },
-  { id: 16, level: 'C', name: 'C4班', teacher: '钱老师', studentCount: 41, avgCompletionRate: 75, totalTasks: 80 },
-  
-  // D级班级
-  { id: 19, level: 'D', name: 'D1班', teacher: '王老师', studentCount: 32, avgCompletionRate: 70, totalTasks: 60 },
-  { id: 20, level: 'D', name: 'D2班', teacher: '李老师', studentCount: 35, avgCompletionRate: 68, totalTasks: 60 },
-  { id: 21, level: 'D', name: 'D3班', teacher: '张老师', studentCount: 30, avgCompletionRate: 72, totalTasks: 60 },
-  { id: 22, level: 'D', name: 'D4班', teacher: '刘老师', studentCount: 33, avgCompletionRate: 69, totalTasks: 60 },
-])
+// 所有班级数据（从API获取）
+const allClasses = ref([])
+
+// 加载可选班级列表
+const fetchClassList = async (level) => {
+  loading.value = true
+  try {
+    const res = await getClassList(level)
+    if (res.code === 200) {
+      // 映射API返回的字段到页面使用的字段
+      allClasses.value = res.rows.map(item => ({
+        id: item.classId,
+        level: item.classLevel,
+        name: item.className,
+        teacher: item.teacherName,
+        studentCount: item.memberCount,
+        totalTasks: item.taskCount
+      }))
+    }
+  } catch (error) {
+    console.error('获取班级列表失败:', error)
+    message.error('获取班级列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 监听等级切换，重新获取班级列表
+const handleLevelChange = (level) => {
+  selectedLevel.value = level
+  fetchClassList(level)
+}
+
+// 加载我的班级信息
+const loadMyClassInfo = async () => {
+  try {
+    const res = await getMyClassInfo()
+    if (res.code === 200 && res.data) {
+      const data = res.data
+      currentClass.value = {
+        id: data.classId,
+        level: data.classLevel || '',
+        name: data.className || '',
+        teacher: data.teacherName || '',
+        studentCount: data.memberCount || 0,
+        avgCompletionRate: data.classTaskCompletionRate || 0,
+        myCompletionRate: data.myTaskCompletionRate || 0,
+        totalTasks: data.totalTasks || 0,
+        completedTasks: data.completedTasks || 0
+      }
+    }
+  } catch (error) {
+    console.error('获取班级信息失败:', error)
+  }
+}
+
+// 组件挂载时获取当前班级信息和班级列表
+onMounted(async () => {
+  await loadMyClassInfo()
+  // 默认获取当前班级同级的班级列表
+  if (currentClass.value.level) {
+    selectedLevel.value = currentClass.value.level
+  }
+  fetchClassList(selectedLevel.value)
+})
 
 // 等级排序（A最高，D最低）
 const levelOrder = { A: 4, B: 3, C: 2, D: 1 }
@@ -277,21 +327,35 @@ const getLevelColorHex = (level) => {
 // 换班申请相关
 const changeModalVisible = ref(false)
 const selectedClass = ref(null)
+const submitLoading = ref(false)
 
 const applyChangeClass = (cls) => {
   selectedClass.value = cls
   changeModalVisible.value = true
 }
 
-const confirmChange = () => {
-  // 实际应调用后端API提交换班申请
-  message.success(`已提交换班申请到 ${selectedClass.value.name}，请等待老师审核`)
-  changeModalVisible.value = false
+const confirmChange = async () => {
+  if (!selectedClass.value) return
   
-  // 可以选择返回我的班级页面
-  setTimeout(() => {
-    router.push('/student/my-class')
-  }, 1500)
+  submitLoading.value = true
+  try {
+    const res = await applyChangeClassApi(selectedClass.value.id)
+    if (res.code === 200) {
+      message.success('换班申请提交成功，请等待老师审核')
+      changeModalVisible.value = false
+      
+      setTimeout(() => {
+        router.push('/student/my-class')
+      }, 1500)
+    } else {
+      message.error(res.msg || '换班申请提交失败')
+    }
+  } catch (error) {
+    console.error('提交换班申请失败:', error)
+    message.error('提交换班申请失败，请稍后重试')
+  } finally {
+    submitLoading.value = false
+  }
 }
 
 // 返回我的班级

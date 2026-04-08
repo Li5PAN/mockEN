@@ -26,28 +26,28 @@
             <a-button 
               :type="selectedLevel === 'A' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'A'"
+              @click="handleLevelChange('A')"
             >
               A级
             </a-button>
             <a-button 
               :type="selectedLevel === 'B' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'B'"
+              @click="handleLevelChange('B')"
             >
               B级
             </a-button>
             <a-button 
               :type="selectedLevel === 'C' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'C'"
+              @click="handleLevelChange('C')"
             >
               C级
             </a-button>
             <a-button 
               :type="selectedLevel === 'D' ? 'primary' : 'default'"
               size="large"
-              @click="selectedLevel = 'D'"
+              @click="handleLevelChange('D')"
             >
               D级
             </a-button>
@@ -55,7 +55,13 @@
         </div>
         
         <a-row :gutter="[16, 16]">
-          <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="cls in filteredClasses" :key="cls.id">
+          <a-col :span="24" v-if="loading" style="text-align: center; padding: 40px">
+            <a-spin size="large" />
+          </a-col>
+          <a-col :span="24" v-else-if="filteredClasses.length === 0" style="text-align: center; padding: 40px; color: #999">
+            <a-empty description="该等级暂无班级" />
+          </a-col>
+          <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="cls in filteredClasses" :key="cls.id" v-else>
             <a-card hoverable class="class-card" @click="applyToClass(cls)">
               <div class="class-header">
                 <a-tag :color="getLevelColor(cls.level)" class="level-tag">{{ cls.level }}级</a-tag>
@@ -215,12 +221,12 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
-import { getMyClassInfo, getClassRanking, quitClass } from '@/services/myClass'
+import { getMyClassInfo, getClassList, getClassRanking, joinClass, quitClass } from '@/services/myClass'
 
 const router = useRouter()
 
-// 是否已加入班级（模拟数据，实际应从后端获取）
-const hasClass = ref(true) // 改为 false 可查看未入班状态
+// 是否已加入班级
+const hasClass = ref(false)
 
 // 是否是首次入班（首次入班只能选D级）
 const isFirstJoin = ref(true) // 如果之前加入过班级，改为 false
@@ -231,33 +237,39 @@ const lastClassLevel = ref(null) // 退出班级后会记录上次等级
 // 选中的等级
 const selectedLevel = ref('D')
 
-// 所有班级列表
-const allClasses = ref([
-  // A级班级
-  { id: 1, level: 'A', name: 'A1班', teacher: '王老师', studentCount: 30, avgCompletionRate: 95, totalTasks: 120 },
-  { id: 2, level: 'A', name: 'A2班', teacher: '李老师', studentCount: 28, avgCompletionRate: 93, totalTasks: 120 },
-  { id: 3, level: 'A', name: 'A3班', teacher: '赵老师', studentCount: 32, avgCompletionRate: 94, totalTasks: 120 },
-  
-  // B级班级
-  { id: 7, level: 'B', name: 'B1班', teacher: '刘老师', studentCount: 35, avgCompletionRate: 85, totalTasks: 100 },
-  { id: 8, level: 'B', name: 'B2班', teacher: '张老师', studentCount: 45, avgCompletionRate: 82, totalTasks: 100 },
-  { id: 9, level: 'B', name: 'B3班', teacher: '陈老师', studentCount: 38, avgCompletionRate: 84, totalTasks: 100 },
-  { id: 10, level: 'B', name: 'B4班', teacher: '孙老师', studentCount: 40, avgCompletionRate: 83, totalTasks: 100 },
-  
-  // C级班级
-  { id: 13, level: 'C', name: 'C1班', teacher: '周老师', studentCount: 40, avgCompletionRate: 78, totalTasks: 80 },
-  { id: 14, level: 'C', name: 'C2班', teacher: '吴老师', studentCount: 42, avgCompletionRate: 76, totalTasks: 80 },
-  { id: 15, level: 'C', name: 'C3班', teacher: '郑老师', studentCount: 38, avgCompletionRate: 77, totalTasks: 80 },
-  { id: 16, level: 'C', name: 'C4班', teacher: '钱老师', studentCount: 41, avgCompletionRate: 75, totalTasks: 80 },
-  
-  // D级班级
-  { id: 19, level: 'D', name: 'D1班', teacher: '王老师', studentCount: 32, avgCompletionRate: 75, totalTasks: 60 },
-  { id: 20, level: 'D', name: 'D2班', teacher: '李老师', studentCount: 28, avgCompletionRate: 78, totalTasks: 60 },
-  { id: 21, level: 'D', name: 'D3班', teacher: '张老师', studentCount: 30, avgCompletionRate: 72, totalTasks: 60 },
-  { id: 22, level: 'D', name: 'D4班', teacher: '刘老师', studentCount: 35, avgCompletionRate: 80, totalTasks: 60 },
-  { id: 23, level: 'D', name: 'D5班', teacher: '陈老师', studentCount: 29, avgCompletionRate: 76, totalTasks: 60 },
-  { id: 24, level: 'D', name: 'D6班', teacher: '赵老师', studentCount: 31, avgCompletionRate: 74, totalTasks: 60 },
-])
+// 加载状态
+const loading = ref(false)
+
+// 所有班级列表（从API获取）
+const allClasses = ref([])
+
+// 加载可选班级列表
+const fetchClassList = async (level) => {
+  loading.value = true
+  try {
+    const res = await getClassList(level)
+    if (res.code === 200) {
+      allClasses.value = res.rows.map(item => ({
+        id: item.classId,
+        level: item.classLevel,
+        name: item.className,
+        teacher: item.teacherName,
+        studentCount: item.memberCount,
+        totalTasks: item.taskCount
+      }))
+    }
+  } catch (error) {
+    console.error('获取班级列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 监听等级切换，重新获取班级列表
+const handleLevelChange = (level) => {
+  selectedLevel.value = level
+  fetchClassList(level)
+}
 
 // 根据选中等级过滤班级
 const filteredClasses = computed(() => {
@@ -544,13 +556,21 @@ const applyToClass = (cls) => {
   applyModalVisible.value = true
 }
 
-const confirmApply = () => {
-  // 实际应调用后端API提交入班申请
-  message.success(`已提交入班申请到 ${selectedClass.value.name}，请等待老师审核`)
-  applyModalVisible.value = false
-  
-  // 模拟申请成功后的状态（实际应等待审核通过）
-  // hasClass.value = true
+const confirmApply = async () => {
+  if (!selectedClass.value) return
+
+  try {
+    const res = await joinClass(selectedClass.value.id)
+    if (res.code === 200) {
+      message.success(`已提交入班申请到 ${selectedClass.value.name}，请等待老师审核`)
+      applyModalVisible.value = false
+    } else {
+      message.error(res.msg || '入班申请提交失败')
+    }
+  } catch (error) {
+    console.error('入班申请失败:', error)
+    message.error('入班申请失败，请稍后重试')
+  }
 }
 
 // 退出班级相关
@@ -563,7 +583,7 @@ const showExitModal = () => {
 const confirmExit = async () => {
   try {
     const res = await quitClass()
-    if (res.code === 200 && res.data) {
+    if (res.code === 200) {
       // 记录当前班级等级
       lastClassLevel.value = currentClass.value.level
       
@@ -579,6 +599,8 @@ const confirmExit = async () => {
       
       // 清空排行榜数据
       topRankData.value = []
+    } else {
+      message.warning(res.msg || '操作失败')
     }
   } catch (error) {
     console.error('退出班级失败:', error)
@@ -598,6 +620,9 @@ onMounted(async () => {
     await loadClassRanking()
     initTrendChart()
     startTableScroll()
+  } else {
+    // 未入班时，加载班级列表
+    await fetchClassList(selectedLevel.value)
   }
 })
 
