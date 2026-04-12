@@ -4,10 +4,18 @@
     <div v-if="!hasClass">
       <a-card title="选择班级">
         <a-alert
-          v-if="isFirstJoin"
+          v-if="isFirstJoin && !pendingApplication"
           message="首次入班提示"
           description="您还未加入任何班级，请从以下班级中选择一个提交入班申请，等待老师审核。首次入班仅可选择D级班级。"
           type="info"
+          show-icon
+          style="margin-bottom: 20px"
+        />
+        <a-alert
+          v-else-if="pendingApplication"
+          message="您有待审核的入班申请"
+          :description="`您已申请加入 ${pendingApplication.className || '班级'}，请耐心等待老师审核，请勿重复申请。`"
+          type="warning"
           show-icon
           style="margin-bottom: 20px"
         />
@@ -325,10 +333,7 @@ const loadClassStatus = async () => {
         hasClass.value = false
         currentClassId.value = null
         currentClassName.value = null
-        // 可以显示待审核提示
-        if (data.pendingApplication) {
-          message.info(`入班申请正在审核中，请等待老师处理`)
-        }
+        pendingApplication.value = data.pendingApplication
       } else if (status === ClassStatus.APPLYING_QUIT) {
         // 申请退班中
         hasClass.value = true
@@ -381,6 +386,9 @@ const loadMyClassInfo = async () => {
 
 // 是否可以换班（任务完成率达到100%）
 const canChangeClass = computed(() => currentClass.value.myCompletionRate === 100)
+
+// 待审核申请信息
+const pendingApplication = ref(null)
 
 // 班级等级颜色
 const getLevelColor = (level) => {
@@ -605,12 +613,18 @@ const applyModalVisible = ref(false)
 const selectedClass = ref(null)
 
 const applyToClass = (cls) => {
+  // 检查是否有待审核的申请
+  if (pendingApplication.value) {
+    message.warning('您有待审核的申请，请等待审核结果后再操作')
+    return
+  }
+
   // 检查是否符合申请条件
   if (!canApplyClass(cls.level)) {
     message.warning('您当前的条件不符合进入该班级')
     return
   }
-  
+
   selectedClass.value = cls
   applyModalVisible.value = true
 }

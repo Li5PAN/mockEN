@@ -100,6 +100,7 @@
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { getApplicationList } from '@/services/teacher/myStudent'
+import { auditApplication } from '@/services/teacher/tmyClass'
 
 // 当前激活的标签页
 const activeTab = ref('join')
@@ -256,42 +257,60 @@ const getLevelColor = (level) => {
 }
 
 // 处理通过申请
-const handleApprove = (record, type) => {
+const handleApprove = async (record, type) => {
   const typeMap = {
     join: '入班',
     transfer: '换班',
     quit: '退班'
   }
-  
-  message.success(`已通过 ${record.userName} 的${typeMap[type]}申请`)
-  
-  // 从列表中移除该申请
-  if (type === 'join') {
-    joinApplications.value = joinApplications.value.filter(item => item.id !== record.id)
-  } else if (type === 'transfer') {
-    transferApplications.value = transferApplications.value.filter(item => item.id !== record.id)
-  } else if (type === 'quit') {
-    quitApplications.value = quitApplications.value.filter(item => item.id !== record.id)
+
+  try {
+    const res = await auditApplication(record.id, '1')
+    if (res.code === 200) {
+      message.success(`已通过 ${record.userName} 的${typeMap[type]}申请`)
+      // 从列表中移除该申请
+      if (type === 'join') {
+        joinApplications.value = joinApplications.value.filter(item => item.id !== record.id)
+      } else if (type === 'transfer') {
+        transferApplications.value = transferApplications.value.filter(item => item.id !== record.id)
+      } else if (type === 'quit') {
+        quitApplications.value = quitApplications.value.filter(item => item.id !== record.id)
+      }
+    } else {
+      message.error(res.msg || '操作失败')
+    }
+  } catch (error) {
+    console.error('审核通过失败:', error)
+    message.error('操作失败，请稍后重试')
   }
 }
 
 // 处理拒绝申请
-const handleReject = (record, type) => {
+const handleReject = async (record, type) => {
   const typeMap = {
     join: '入班',
     transfer: '换班',
     quit: '退班'
   }
-  
-  message.warning(`已拒绝 ${record.userName} 的${typeMap[type]}申请`)
-  
-  // 从列表中移除该申请
-  if (type === 'join') {
-    joinApplications.value = joinApplications.value.filter(item => item.id !== record.id)
-  } else if (type === 'transfer') {
-    transferApplications.value = transferApplications.value.filter(item => item.id !== record.id)
-  } else if (type === 'quit') {
-    quitApplications.value = quitApplications.value.filter(item => item.id !== record.id)
+
+  try {
+    const res = await auditApplication(record.id, '2')
+    if (res.code === 200) {
+      message.success(`已拒绝 ${record.userName} 的${typeMap[type]}申请`)
+      // 从列表中移除该申请
+      if (type === 'join') {
+        joinApplications.value = joinApplications.value.filter(item => item.id !== record.id)
+      } else if (type === 'transfer') {
+        transferApplications.value = transferApplications.value.filter(item => item.id !== record.id)
+      } else if (type === 'quit') {
+        quitApplications.value = quitApplications.value.filter(item => item.id !== record.id)
+      }
+    } else {
+      message.error(res.msg || '操作失败')
+    }
+  } catch (error) {
+    console.error('审核拒绝失败:', error)
+    message.error('操作失败，请稍后重试')
   }
 }
 
@@ -300,32 +319,46 @@ const loadData = async () => {
   loading.value = true
   try {
     // 加载入班申请数据 (applicationType: 1)
-    const joinRes = await getApplicationList({ applicationType: '1' })
+    const joinRes = await getApplicationList({ 
+      applicationType: 1,
+      pageNum: 1,
+      pageSize: 10 
+    })
     if (joinRes.code === 200) {
-      joinApplications.value = joinRes.rows.map(item => ({
+      // 后端分页数据在 data.rows 中
+      joinApplications.value = (joinRes.data?.rows || joinRes.rows || []).map(item => ({
         ...item,
         id: item.applicationId
       }))
     }
 
     // 加载换班申请数据 (applicationType: 2)
-    const transferRes = await getApplicationList({ applicationType: '2' })
+    const transferRes = await getApplicationList({ 
+      applicationType: 2,
+      pageNum: 1,
+      pageSize: 10 
+    })
     if (transferRes.code === 200) {
-      transferApplications.value = transferRes.rows.map(item => ({
+      transferApplications.value = (transferRes.data?.rows || transferRes.rows || []).map(item => ({
         ...item,
         id: item.applicationId
       }))
     }
 
     // 加载退班申请数据 (applicationType: 3)
-    const quitRes = await getApplicationList({ applicationType: '3' })
+    const quitRes = await getApplicationList({ 
+      applicationType: 3,
+      pageNum: 1,
+      pageSize: 10 
+    })
     if (quitRes.code === 200) {
-      quitApplications.value = quitRes.rows.map(item => ({
+      quitApplications.value = (quitRes.data?.rows || quitRes.rows || []).map(item => ({
         ...item,
         id: item.applicationId
       }))
     }
   } catch (error) {
+    console.error('加载申请数据失败:', error)
     message.error('加载申请数据失败')
   } finally {
     loading.value = false

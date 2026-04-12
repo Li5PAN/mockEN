@@ -68,3 +68,22 @@ export async function createClass(data) {
 
   return res
 }
+
+/**
+ * 审核申请（通过/拒绝）
+ * @param {number} applicationId - 申请ID
+ * @param {string} applicationStatus - 审核状态：1-通过，2-拒绝
+ * @returns {Promise<Object>} - 返回审核结果
+ */
+export async function auditApplication(applicationId, applicationStatus) {
+  const res = await request({
+    url: '/teacher/application/audit',
+    method: 'POST',
+    params: {
+      applicationId,
+      applicationStatus
+    }
+  })
+
+  return res
+}

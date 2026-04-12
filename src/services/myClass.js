@@ -83,7 +83,7 @@ export async function applyChangeClass(classId) {
   const res = await request({
     url: '/student/class/change',
     method: 'POST',
-    params: {
+    data: {
       classId
     }
   })
@@ -100,7 +100,7 @@ export async function joinClass(classId) {
   const res = await request({
     url: '/student/class/join',
     method: 'POST',
-    params: {
+    data: {
       classId
     }
   })

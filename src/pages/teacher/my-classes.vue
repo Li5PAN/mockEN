@@ -337,7 +337,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import PlusOutlined from '@ant-design/icons-vue/PlusOutlined'
 import TeamOutlined from '@ant-design/icons-vue/TeamOutlined'
@@ -367,6 +367,13 @@ const levelOptions = [
 
 // 班级列表
 const classList = ref([])
+
+// 分页配置
+const pagination = ref({
+  current: 1,
+  pageSize: 10,
+  total: 0
+})
 
 // 创建弹窗相关
 const createModalVisible = ref(false)
@@ -399,6 +406,13 @@ const filteredClasses = computed(() => {
     return classList.value
   }
   return classList.value.filter(item => item.level === filterLevel.value)
+})
+
+// 监听筛选等级变化，重新加载列表
+watch(filterLevel, () => {
+  // 重置分页并重新加载
+  pagination.value.current = 1
+  loadClassList()
 })
 
 // 获取等级颜色
@@ -651,9 +665,10 @@ const loadClassList = async () => {
       pageNum: pagination.current,
       pageSize: pagination.pageSize
     })
-    if (listRes.code === 200 && listRes.data) {
+    // 根据后端返回格式，数据直接在根层级
+    if (listRes.code === 200 && listRes.rows) {
       // 映射接口字段到页面字段
-      classList.value = listRes.data.rows.map(item => ({
+      classList.value = listRes.rows.map(item => ({
         id: item.classId,
         name: item.className,
         level: item.classLevel,
@@ -663,7 +678,7 @@ const loadClassList = async () => {
         createTime: formatDate(item.createTime),
         pendingCount: item.pendingApplicationCount
       }))
-      pagination.total = listRes.data.total || 0
+      pagination.total = listRes.total || 0
     }
   } catch (error) {
     console.error('获取班级列表失败:', error)
