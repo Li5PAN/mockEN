@@ -244,7 +244,7 @@ import {
   DeleteOutlined, 
   SoundOutlined 
 } from '@ant-design/icons-vue'
-import { getFavoriteWords, toggleWordCollect, matchWordAnswer } from '../../services/wordService'
+import { getFavoriteWords, toggleWordCollect, deleteFavoriteWords, matchWordAnswer } from '../../services/wordService'
 
 const router = useRouter()
 
@@ -330,6 +330,8 @@ const loadFavorites = async () => {
 
 const removeFavorite = async (word) => {
   try {
+    console.log('取消收藏单词, wordId:', word.wordId)
+    // 使用 wordId 调用取消收藏接口
     await toggleWordCollect(word.wordId, false)
     message.success('已取消收藏')
     await loadFavorites()

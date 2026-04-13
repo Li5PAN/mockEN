@@ -209,9 +209,9 @@
 
         <a-form-item label="任务类型" name="taskType">
           <a-select v-model:value="publishTaskForm.taskType" placeholder="请选择任务类型">
-            <a-select-option value="daily">日常练习</a-select-option>
-            <a-select-option value="midterm">半期练习</a-select-option>
-            <a-select-option value="review">复习练习</a-select-option>
+            <a-select-option value="1">单词学习</a-select-option>
+            <a-select-option value="2">单词测试</a-select-option>
+            <a-select-option value="3">综合练习</a-select-option>
           </a-select>
         </a-form-item>
 
@@ -343,7 +343,7 @@ import PlusOutlined from '@ant-design/icons-vue/PlusOutlined'
 import TeamOutlined from '@ant-design/icons-vue/TeamOutlined'
 import CarryOutOutlined from '@ant-design/icons-vue/CarryOutOutlined'
 import ClockCircleOutlined from '@ant-design/icons-vue/ClockCircleOutlined'
-import { getClassOverview, getClassList, createClass } from '@/services/teacher/tmyClass'
+import { getClassOverview, getClassList, createClass, publishTaskWithQuestions } from '@/services/teacher/tmyClass'
 
 // 统计数据
 const statistics = reactive({
@@ -598,23 +598,48 @@ const handlePublishTask = async () => {
 
     publishTaskLoading.value = true
 
-    // 模拟API调用
-    setTimeout(() => {
-      const taskInfo = {
-        taskName: publishTaskForm.taskName,
-        className: selectedClass.value.name,
-        classLevel: selectedClass.value.level,
-        questionCount: publishTaskForm.questions.length,
-        startTime: publishTaskForm.startTime ? publishTaskForm.startTime.format('YYYY-MM-DD HH:mm') : '',
-        deadline: publishTaskForm.deadline ? publishTaskForm.deadline.format('YYYY-MM-DD HH:mm') : '',
-        createTime: new Date().toLocaleString()
+    // 转换时间格式
+    const startTime = publishTaskForm.startTime ? publishTaskForm.startTime.format('YYYY-MM-DD HH:mm:ss') : ''
+    const endTime = publishTaskForm.deadline ? publishTaskForm.deadline.format('YYYY-MM-DD HH:mm:ss') : ''
+
+    // 转换题目格式
+    const formattedQuestions = publishTaskForm.questions.map(q => {
+      let questionType = ''
+      if (q.type === 'choice') questionType = '1'
+      else if (q.type === 'spelling') questionType = '2'
+      else if (q.type === 'fillBlank') questionType = '3'
+
+      // 处理选择题选项
+      let options = ''
+      if (q.type === 'choice' && q.options && q.options.length > 0) {
+        const optionsObj = {}
+        q.options.forEach((opt, idx) => {
+          optionsObj[String.fromCharCode(65 + idx)] = opt
+        })
+        options = JSON.stringify(optionsObj)
       }
 
-      message.success(`任务发布成功！共 ${taskInfo.questionCount} 道题目`)
-      console.log('任务信息:', taskInfo)
-      
+      return {
+        questionType,
+        questionContent: q.content,
+        options,
+        correctAnswer: q.answer
+      }
+    })
+
+    // 使用单一接口发布任务并添加题目
+    const res = await publishTaskWithQuestions({
+      taskName: publishTaskForm.taskName,
+      classId: selectedClass.value.id,
+      taskType: publishTaskForm.taskType,
+      startTime,
+      endTime,
+      questions: formattedQuestions
+    })
+
+    if (res.code === 200) {
+      message.success(`任务发布成功！共 ${formattedQuestions.length} 道题目`)
       publishTaskModalVisible.value = false
-      publishTaskLoading.value = false
 
       // 重置表单
       publishTaskForm.taskName = ''
@@ -622,9 +647,14 @@ const handlePublishTask = async () => {
       publishTaskForm.startTime = null
       publishTaskForm.deadline = null
       publishTaskForm.questions = []
-    }, 1000)
+    } else {
+      message.error(res.msg || '任务发布失败')
+    }
   } catch (error) {
-    console.log('表单验证失败:', error)
+    console.error('发布任务失败:', error)
+    message.error('发布任务失败')
+  } finally {
+    publishTaskLoading.value = false
   }
 }
 

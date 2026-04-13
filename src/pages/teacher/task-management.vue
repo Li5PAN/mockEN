@@ -254,13 +254,15 @@ const showTaskDetail = async (task) => {
               const parsedOptions = JSON.parse(q.options)
               // 转换为数组格式
               options = Object.values(parsedOptions)
-              // 找到正确答案的索引
-              const correctKey = Object.keys(parsedOptions).find(
-                key => key === q.correctAnswer || parsedOptions[key] === q.correctAnswer
-              )
-              if (correctKey) {
-                correctIndexes = [Object.keys(parsedOptions).indexOf(correctKey)]
-              }
+              
+              // 找到正确答案的索引（支持单选和多选）
+              const optionKeys = Object.keys(parsedOptions)
+              // 将 correctAnswer 分割为数组（如 "A,B" -> ["A", "B"]）
+              const answerArray = q.correctAnswer.split(',').map(a => a.trim())
+              
+              correctIndexes = answerArray
+                .map(ans => optionKeys.indexOf(ans))
+                .filter(idx => idx !== -1)
             } catch (e) {
               // 解析失败，options 保持为空
             }

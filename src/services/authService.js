@@ -63,8 +63,31 @@ async function logout() {
   return res
 }
 
+/**
+ * 用户注册
+ * @param {Object} params - 注册参数
+ * @param {string} params.username - 用户名
+ * @param {string} params.password - 密码
+ * @param {string} params.code - 身份类型 (teacher/student)
+ * @returns {Promise<Object>} - 注册结果
+ */
+async function register(params) {
+  const res = await request({
+    url: '/register',
+    method: 'post',
+    data: {
+      username: params.username,
+      password: params.password,
+      code: params.code
+    }
+  })
+
+  return res
+}
+
 export default {
   login,
   getUserInfo,
-  logout
+  logout,
+  register
 }

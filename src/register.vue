@@ -22,17 +22,16 @@
           />
         </div>
         <div class="form-group">
-          <label>昵称</label>
-          <input 
-            v-model="registerForm.nickname" 
-            type="text" 
-            placeholder="请输入昵称"
-            required
-          />
+          <label>身份</label>
+          <select v-model="registerForm.code" required>
+            <option value="" disabled>请选择身份</option>
+            <option value="student">学生</option>
+            <option value="teacher">教师</option>
+          </select>
         </div>
         <div v-if="errorMsg" class="error-msg">{{ errorMsg }}</div>
         <div v-if="successMsg" class="success-msg">{{ successMsg }}</div>
-        <button type="submit" class="btn-register">注册</button>
+        <button type="submit" class="btn-register" :disabled="loading">注册</button>
         <button type="button" class="btn-back" @click="goToLogin">返回登录</button>
       </form>
     </div>
@@ -42,25 +41,27 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import authService from '@/services/authService'
 
 const router = useRouter()
 
 const registerForm = ref({
   username: '',
   password: '',
-  nickname: ''
+  code: ''
 })
 
 const errorMsg = ref('')
 const successMsg = ref('')
+const loading = ref(false)
 
-const handleRegister = () => {
+const handleRegister = async () => {
   errorMsg.value = ''
   successMsg.value = ''
   
-  const { username, password, nickname } = registerForm.value
+  const { username, password, code } = registerForm.value
   
-  if (!username || !password || !nickname) {
+  if (!username || !password || !code) {
     errorMsg.value = '请填写完整信息'
     return
   }
@@ -74,24 +75,26 @@ const handleRegister = () => {
     errorMsg.value = '密码长度至少6个字符'
     return
   }
+
+  loading.value = true
   
-  // 模拟注册成功
-  successMsg.value = '注册成功！2秒后跳转到登录页...'
-  
-  // 保存注册信息到 localStorage（实际项目中应该发送到后端）
-  const registeredUsers = JSON.parse(localStorage.getItem('registeredUsers') || '[]')
-  registeredUsers.push({
-    username,
-    password,
-    nickname,
-    role: 'student' // 默认注册为学生角色
-  })
-  localStorage.setItem('registeredUsers', JSON.stringify(registeredUsers))
-  
-  // 2秒后跳转到登录页
-  setTimeout(() => {
-    router.push('/login')
-  }, 2000)
+  try {
+    await authService.register({
+      username,
+      password,
+      code
+    })
+    
+    successMsg.value = '注册成功！2秒后跳转到登录页...'
+    
+    setTimeout(() => {
+      router.push('/login')
+    }, 2000)
+  } catch (error) {
+    errorMsg.value = error.message || '注册失败，请重试'
+  } finally {
+    loading.value = false
+  }
 }
 
 const goToLogin = () => {
@@ -135,7 +138,7 @@ label {
   font-weight: 500;
 }
 
-input {
+input, select {
   width: 100%;
   padding: 12px;
   border: 1px solid #ddd;
@@ -143,9 +146,10 @@ input {
   font-size: 14px;
   box-sizing: border-box;
   transition: border-color 0.3s;
+  background-color: white;
 }
 
-input:focus {
+input:focus, select:focus {
   outline: none;
   border-color: #667eea;
 }
@@ -180,8 +184,13 @@ button {
   margin-bottom: 10px;
 }
 
-.btn-register:hover {
+.btn-register:hover:not(:disabled) {
   background: #5568d3;
+}
+
+.btn-register:disabled {
+  background: #a09fd6;
+  cursor: not-allowed;
 }
 
 .btn-back {

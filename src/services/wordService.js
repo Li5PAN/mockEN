@@ -465,7 +465,9 @@ export async function getFavoriteWords(params = {}) {
   
   // 转换后端数据格式为前端所需格式
   const records = res.rows || res.records || []
+  console.log('收藏单词原始数据:', records)
   return records.map(item => ({
+    collectionId: item.collectionId || item.id || item.wordCollectionId,
     word: item.englishWord,
     wordId: item.wordId,
     ukPhonetic: item.phoneticUk || '',
@@ -497,12 +499,39 @@ export async function toggleWordCollect(wordId, collect) {
     url: '/student/words/collect',
     method: 'POST',
     params: {
-      wordId,
-      collect
+      collect,
+      wordId
     }
   })
+
+  return res
+}
+
+/**
+ * 删除收藏单词（批量）
+ * @param {string|number|string[]|number[]} collectionIds - 收藏记录ID，单个或多个
+ * @returns {Promise<Object>} - 返回操作结果
+ */
+export async function deleteFavoriteWords(collectionIds) {
+  console.log('删除收藏单词:', collectionIds)
   
-  console.log('收藏操作结果:', res)
+  let ids = collectionIds
+  if (typeof collectionIds === 'string') {
+    ids = collectionIds.split(',').map(id => Number(id))
+  } else if (Array.isArray(collectionIds)) {
+    ids = collectionIds.map(id => Number(id))
+  } else {
+    ids = [Number(collectionIds)]
+  }
+  
+  const res = await request({
+    url: '/business/word_collection',
+    method: 'DELETE',
+    params: {
+      collectionIds: ids
+    }
+  })
+
   return res
 }
 

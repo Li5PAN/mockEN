@@ -87,3 +87,37 @@ export async function auditApplication(applicationId, applicationStatus) {
 
   return res
 }
+
+
+
+/**
+ * 创建任务并批量添加题目
+ * @param {Object} data - 任务和题目信息
+ * @param {string} data.taskName - 任务名称
+ * @param {number} data.classId - 所属班级ID
+ * @param {string} data.taskType - 任务类型(1单词学习 2单词测试 3综合练习)
+ * @param {string} data.startTime - 开始时间
+ * @param {string} data.endTime - 截止时间
+ * @param {Array} data.questions - 题目列表
+ * @param {string} data.questions[].questionType - 题型(1选择题 2单词拼写 3填空题)
+ * @param {string} data.questions[].questionContent - 题目内容
+ * @param {string} data.questions[].options - 选项(JSON格式，选择题使用)
+ * @param {string} data.questions[].correctAnswer - 正确答案
+ * @returns {Promise<Object>} - 返回添加结果
+ */
+export async function publishTaskWithQuestions(data) {
+  const res = await request({
+    url: '/teacher/task/publish-with-questions',
+    method: 'POST',
+    data: {
+      taskName: data.taskName,
+      classId: data.classId,
+      taskType: data.taskType,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      questions: data.questions
+    }
+  })
+
+  return res
+}
