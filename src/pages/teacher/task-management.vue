@@ -243,23 +243,19 @@ const showTaskDetail = async (task) => {
             '2': 'fillBlank',
             '3': 'spelling'
           }
-
           // 解析选项 JSON 字符串
           let options = null
           let correctIndexes = null
           let answer = q.correctAnswer
-
           if (q.options) {
             try {
               const parsedOptions = JSON.parse(q.options)
               // 转换为数组格式
               options = Object.values(parsedOptions)
-              
               // 找到正确答案的索引（支持单选和多选）
               const optionKeys = Object.keys(parsedOptions)
               // 将 correctAnswer 分割为数组（如 "A,B" -> ["A", "B"]）
               const answerArray = q.correctAnswer.split(',').map(a => a.trim())
-              
               correctIndexes = answerArray
                 .map(ans => optionKeys.indexOf(ans))
                 .filter(idx => idx !== -1)
@@ -267,7 +263,6 @@ const showTaskDetail = async (task) => {
               // 解析失败，options 保持为空
             }
           }
-
           return {
             type: typeMap[q.questionType] || 'choice',
             content: q.questionContent,
