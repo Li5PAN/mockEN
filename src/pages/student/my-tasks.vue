@@ -151,7 +151,7 @@
               v-if="question.type === 'input'"
               v-model:value="question.userAnswer"
               placeholder="请输入答案"
-              style="margin-top: 10px"
+              style="margin-top: 10px; width: 100%"
             />
           </div>
 
@@ -463,6 +463,9 @@ const startTask = async (task) => {
       }
       // 处理题目数据
       currentQuestions.value = (taskData.questions || []).map(q => {
+        // 调试：打印原始类型
+        console.log('题目ID:', q.questionId, '原始questionType:', q.questionType, '映射后type:', questionTypeMap[q.questionType])
+        
         let options = []
         // 解析 options 字段（可能是 JSON 字符串）
         if (q.options) {
@@ -478,6 +481,7 @@ const startTask = async (task) => {
           questionId: q.questionId,
           questionName: q.questionName,
           questionContent: q.questionContent,
+          questionType: q.questionType, // 保留原始类型便于调试
           type: questionTypeMap[q.questionType] || 'single',
           options: options,
           userAnswer: null,

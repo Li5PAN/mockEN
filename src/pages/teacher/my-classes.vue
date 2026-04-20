@@ -174,9 +174,9 @@
         <a-form-item label="任务数量" name="taskCount">
           <a-input-number
             v-model:value="createForm.taskCount"
-            :min="60"
+            :min="0"
             :max="100"
-            placeholder="60-100"
+            placeholder="0-100"
             style="width: 100%"
           />
         </a-form-item>
@@ -410,7 +410,7 @@ const createRules = {
   name: [{ required: true, message: '请输入班级名称', trigger: 'blur' }],
   taskCount: [
     { required: true, message: '请输入任务完成数量', trigger: 'blur' },
-    { type: 'number', min: 60, max: 100, message: '任务数量必须在60-100之间', trigger: 'blur' }
+    { type: 'number', min: 1, max: 100, message: '任务数量必须在1-100之间', trigger: 'blur' }
   ],
   maxStudents: [
     { required: true, message: '请输入班级限定人数', trigger: 'blur' },
