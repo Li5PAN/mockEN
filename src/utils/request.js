@@ -12,8 +12,8 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
-    // 登录接口不需要 token
-    if (config.url.includes('/auth/login')) {
+    // 登录和注册接口不需要 token
+    if (config.url.includes('/auth/login') || config.url.includes('/auth/register')) {
       return config
     }
     

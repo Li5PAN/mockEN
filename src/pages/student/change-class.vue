@@ -146,7 +146,7 @@
                 type="primary" 
                 block 
                 style="margin-top: 12px"
-                @click="applyChangeClass(cls)"
+                @click="showChangeClassModal(cls)"
               >
                 申请换班
               </a-button>
@@ -192,10 +192,10 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
 import {
-  mockGetMyClassInfo,
-  mockGetClassList,
-  mockApplyChangeClass
-} from '../mockjson/myclass.js'
+  getMyClassInfo,
+  getClassList,
+  applyChangeClass
+} from '@/services/student/smyclass.js'
 
 const router = useRouter()
 
@@ -225,15 +225,15 @@ const allClasses = ref([])
 const fetchClassList = async (level) => {
   loading.value = true
   try {
-    const res = await mockGetClassList(level)
+    const res = await getClassList(level)
     if (res.code === 200) {
       allClasses.value = res.rows.map(item => ({
-        id: item.classId,
-        level: item.classLevel,
-        name: item.className,
+        id: item.classId || item.id,
+        level: item.level,
+        name: item.name,
         teacher: item.teacherName,
-        studentCount: item.memberCount,
-        totalTasks: item.taskCount
+        studentCount: item.memberCount || item.studentCount,
+        totalTasks: item.totalTasks || item.taskCount
       }))
     }
   } catch (error) {
@@ -253,7 +253,7 @@ const handleLevelChange = (level) => {
 // 加载我的班级信息
 const loadMyClassInfo = async () => {
   try {
-    const res = await mockGetMyClassInfo()
+    const res = await getMyClassInfo()
     if (res.code === 200 && res.data) {
       const data = res.data
       currentClass.value = {
@@ -329,7 +329,8 @@ const changeModalVisible = ref(false)
 const selectedClass = ref(null)
 const submitLoading = ref(false)
 
-const applyChangeClass = (cls) => {
+// 显示换班确认弹窗
+const showChangeClassModal = (cls) => {
   selectedClass.value = cls
   changeModalVisible.value = true
 }
@@ -339,7 +340,7 @@ const confirmChange = async () => {
   
   submitLoading.value = true
   try {
-    const res = await mockApplyChangeClass(selectedClass.value.id)
+    const res = await applyChangeClass(selectedClass.value.id)
     if (res.code === 200) {
       message.success('换班申请提交成功，请等待老师审核')
       changeModalVisible.value = false

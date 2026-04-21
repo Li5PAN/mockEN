@@ -99,7 +99,7 @@
                   <a-button 
                     type="link" 
                     size="small"
-                    @click="playAudio(searchResult.ukSpeech)"
+                    @click="playAudio(searchResult.word, 'uk')"
                   >
                     <SoundOutlined />
                   </a-button>
@@ -109,7 +109,7 @@
                   <a-button 
                     type="link" 
                     size="small"
-                    @click="playAudio(searchResult.usSpeech)"
+                    @click="playAudio(searchResult.word, 'us')"
                   >
                     <SoundOutlined />
                   </a-button>
@@ -150,17 +150,7 @@
                 :key="index"
                 class="example-item"
               >
-                <p class="example-en">
-                  {{ example.sentence }}
-                  <a-button 
-                    v-if="example.sentenceSpeech"
-                    type="link" 
-                    size="small"
-                    @click="playAudio(example.sentenceSpeech)"
-                  >
-                    <SoundOutlined />
-                  </a-button>
-                </p>
+                <p class="example-en">{{ example.sentence }}</p>
                 <p class="example-cn">{{ example.translation }}</p>
               </div>
             </div>
@@ -195,7 +185,7 @@
                 <a-button 
                   type="link" 
                   size="small"
-                  @click="playAudio(currentWord.ukSpeech)"
+                  @click="playAudio(currentWord.word, 'uk')"
                 >
                   <SoundOutlined />
                 </a-button>
@@ -205,7 +195,7 @@
                 <a-button 
                   type="link" 
                   size="small"
-                  @click="playAudio(currentWord.usSpeech)"
+                  @click="playAudio(currentWord.word, 'us')"
                 >
                   <SoundOutlined />
                 </a-button>
@@ -226,17 +216,7 @@
                 :key="index"
                 class="example-item"
               >
-                <p class="example-en">
-                  {{ example.sentence }}
-                  <a-button 
-                    v-if="example.sentenceSpeech"
-                    type="link" 
-                    size="small"
-                    @click="playAudio(example.sentenceSpeech)"
-                  >
-                    <SoundOutlined />
-                  </a-button>
-                </p>
+                <p class="example-en">{{ example.sentence }}</p>
                 <p class="example-cn">{{ example.translation }}</p>
               </div>
             </div>
@@ -463,8 +443,11 @@ const handleSearch = async () => {
     const res = await searchWord(keyword)
     
     if (res.success && res.data) {
-      searchResult.value = res.data
+      // 转换搜索结果数据格式
+      searchResult.value = transformWordData(res.data)
       if (res.data.meanings && res.data.meanings.length > 0) {
+        message.success('查询成功')
+      } else if (res.data.chineseMeaning) {
         message.success('查询成功')
       }
       checkSearchResultFavorite()
@@ -525,13 +508,17 @@ const startLearningFromSearch = () => {
 }
 
 // 播放发音
-const playAudio = (audioUrl) => {
-  if (!audioUrl) {
+const playAudio = (word, type = 'uk') => {
+  if (!word) {
     message.info('暂无发音')
     return
   }
 
   try {
+    // 使用有道词典发音接口
+    const audioType = type === 'uk' ? 1 : 2
+    const audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${audioType}`
+    
     const audio = new Audio(audioUrl)
     
     audio.addEventListener('error', (e) => {
@@ -713,6 +700,38 @@ const handleFillInput = (index) => {
   }
 }
 
+// 转换 API 数据为组件期望的格式
+const transformWordData = (word) => {
+  // 处理释义 - 将 chineseMeaning 转换为数组
+  let meanings = []
+  if (word.chineseMeaning) {
+    // 按分号或换行分割，并过滤空项
+    meanings = word.chineseMeaning
+      .split(/[;；]/)
+      .map(m => m.trim())
+      .filter(m => m.length > 0)
+  }
+
+  // 处理例句 - 转换为数组格式
+  let examples = []
+  if (word.exampleSentence && word.exampleTranslation) {
+    examples = [{
+      sentence: word.exampleSentence,
+      translation: word.exampleTranslation
+    }]
+  }
+
+  return {
+    ...word,
+    meanings,
+    examples,
+    // 同时保留原始字段供其他用途
+    chineseMeaning: word.chineseMeaning,
+    exampleSentence: word.exampleSentence,
+    exampleTranslation: word.exampleTranslation
+  }
+}
+
 // 加载单词列表
 const loadWords = async () => {
   isInitialLoading.value = true
@@ -724,7 +743,8 @@ const loadWords = async () => {
     })
     
     if (res.records && res.records.length > 0) {
-      allWords.value = res.records
+      // 转换数据格式
+      allWords.value = res.records.map(transformWordData)
       const selectedWords = shuffleArray([...allWords.value]).slice(0, 100)
       wordList.value = selectedWords
       learnedCount.value = 0

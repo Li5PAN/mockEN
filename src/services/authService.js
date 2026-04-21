@@ -76,7 +76,7 @@ async function logout() {
  */
 async function register(params) {
   const res = await request({
-    url: '/register',
+    url: '/auth/register',
     method: 'post',
     data: {
       username: params.username,

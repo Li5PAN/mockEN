@@ -80,7 +80,7 @@
                   <a-button 
                     type="link" 
                     size="small"
-                    @click="playAudio(word.ukSpeech)"
+                    @click="playAudio(word.word, 'uk')"
                   >
                     <SoundOutlined />
                   </a-button>
@@ -90,7 +90,7 @@
                   <a-button 
                     type="link" 
                     size="small"
-                    @click="playAudio(word.usSpeech)"
+                    @click="playAudio(word.word, 'us')"
                   >
                     <SoundOutlined />
                   </a-button>
@@ -276,7 +276,7 @@ const filteredWords = computed(() => {
   const keyword = searchKeyword.value.toLowerCase()
   return favoriteWords.value.filter(word => 
     word.word.toLowerCase().includes(keyword) ||
-    word.meanings.some(m => m.includes(searchKeyword.value))
+    (word.meanings && word.meanings.some(m => m.includes(searchKeyword.value)))
   )
 })
 
@@ -315,12 +315,40 @@ const handleSearch = () => {
   // 搜索已在 computed 中处理
 }
 
+// 转换 API 数据为组件期望的格式
+const transformWordData = (word) => {
+  // 处理释义 - 将 chineseMeaning 转换为数组
+  let meanings = []
+  if (word.chineseMeaning) {
+    meanings = word.chineseMeaning
+      .split(/[;；]/)
+      .map(m => m.trim())
+      .filter(m => m.length > 0)
+  }
+
+  // 处理例句 - 转换为数组格式
+  let examples = []
+  if (word.exampleSentence && word.exampleTranslation) {
+    examples = [{
+      sentence: word.exampleSentence,
+      translation: word.exampleTranslation
+    }]
+  }
+
+  return {
+    ...word,
+    meanings,
+    examples
+  }
+}
+
 const loadFavorites = async () => {
   loading.value = true
   try {
     const res = await getFavoriteList()
     if (res.code === 200) {
-      favoriteWords.value = res.records || []
+      // 转换数据格式
+      favoriteWords.value = (res.records || []).map(transformWordData)
     }
     
     if (favoriteWords.value.length === 0) {
@@ -351,13 +379,17 @@ const removeFavorite = async (word) => {
   }
 }
 
-const playAudio = (audioUrl) => {
-  if (!audioUrl) {
+const playAudio = (word, type = 'uk') => {
+  if (!word) {
     message.info('暂无发音')
     return
   }
 
   try {
+    // 使用有道词典发音接口
+    const audioType = type === 'uk' ? 1 : 2
+    const audioUrl = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${audioType}`
+    
     const audio = new Audio(audioUrl)
     audio.play().catch(err => {
       console.error('音频播放失败:', err)

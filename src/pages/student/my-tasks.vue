@@ -283,12 +283,8 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import {
-  mockGetMyTasks,
-  mockGetTaskQuestions,
-  mockGetTaskDetail,
-  mockSubmitTaskAnswers
-} from '../mockjson/mytask.js'
+import myTaskService from '@/services/myTask'
+const { getMyTasks, getTaskQuestions, getTaskDetail, submitTaskAnswers } = myTaskService
 
 // 任务状态：pending-未完成，completed-已完成
 const taskStatus = ref('pending')
@@ -331,7 +327,7 @@ const fetchTasks = async () => {
   loading.value = true
   try {
     const completed = taskStatus.value === 'completed' ? 'true' : 'false'
-    const res = await mockGetMyTasks(completed)
+    const res = await getMyTasks({ completed })
     
     if (res && res.code === 200) {
       const data = res.data || []
@@ -454,7 +450,7 @@ const startTask = async (task) => {
   doTaskModalVisible.value = true
   
   try {
-    const res = await mockGetTaskQuestions(task.taskId)
+    const res = await getTaskQuestions(task.taskId)
     
     if (res && res.code === 200 && res.data) {
       const taskData = res.data
@@ -523,7 +519,7 @@ const submitTask = async () => {
   }))
 
   try {
-    const res = await mockSubmitTaskAnswers({
+    const res = await submitTaskAnswers({
       taskId: currentTask.value.taskId,
       answers: answers,
       timeUsed: timeUsed.value,
@@ -556,7 +552,7 @@ const viewDetail = async (task) => {
   detailModalVisible.value = true
   
   try {
-    const res = await mockGetTaskDetail(task.taskId)
+    const res = await getTaskDetail(task.taskId)
     
     if (res && res.code === 200 && res.data) {
       const taskData = res.data

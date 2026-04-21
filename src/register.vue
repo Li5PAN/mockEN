@@ -42,7 +42,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { mockRegister } from '@/pages/mockjson/auth.js'
+import { register } from '@/services/authService.js'
 
 const router = useRouter()
 
@@ -59,38 +59,39 @@ const loading = ref(false)
 const handleRegister = async () => {
   errorMsg.value = ''
   successMsg.value = ''
-  
+
   const { username, password, code } = registerForm.value
-  
+
   if (!username || !password || !code) {
     errorMsg.value = '请填写完整信息'
     return
   }
-  
+
   if (username.length < 3) {
     errorMsg.value = '账号长度至少3个字符'
     return
   }
-  
+
   if (password.length < 6) {
     errorMsg.value = '密码长度至少6个字符'
     return
   }
 
   loading.value = true
-  
+
   try {
-    // 使用模拟注册
-    const res = await mockRegister(username, password, code)
-    
+    const res = await register({
+      username,
+      password,
+      code
+    })
+
     if (res.code === 200) {
       successMsg.value = '注册成功！2秒后跳转到登录页...'
-      
+
       setTimeout(() => {
         router.push('/login')
       }, 2000)
-    } else {
-      errorMsg.value = res.msg || '注册失败，请重试'
     }
   } catch (error) {
     errorMsg.value = error.message || '注册失败，请重试'

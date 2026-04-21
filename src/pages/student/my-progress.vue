@@ -19,7 +19,7 @@
         <a-card>
           <a-statistic
             title="任务完成数"
-            :value="statistics.weekTotalTime"
+            :value="statistics.completedTasks"
             suffix="个"
           >
             <template #prefix>
@@ -32,7 +32,7 @@
         <a-card>
           <a-statistic
             title="总错题数"
-            :value="statistics.weekAvgTime"
+            :value="statistics.totalErrors"
             suffix="个"
           >
             <template #prefix>
@@ -84,8 +84,8 @@
 
       <a-table
         :columns="rankColumns"
-        :data-source="currentRankData"
-        :pagination="{ pageSize: 10, showTotal: (total) => `共 ${total} 名学生` }"
+        :data-source="rankList"
+        :pagination="{ pageSize: 10, showTotal: (total) => `共 ${total} 名学生`, total: rankTotal }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'rank'">
@@ -137,49 +137,29 @@ import {
   ClockCircleOutlined,
   FieldTimeOutlined,
 } from '@ant-design/icons-vue'
-import { mockGetStudentStats, mockGetWeeklyTasks } from '../mockjson/myprogress.js'
+import { getStatistics, getDailyStudy, getCompareRate, getRanking } from '@/services/student/mydata'
 
 // 顶部统计数据
 const statistics = ref({
   totalWords: 0,
-  weekTotalTime: 0,
-  weekAvgTime: 0,
+  completedTasks: 0,
+  totalErrors: 0,
 })
 
 // 获取学情统计数据
 const fetchStats = async () => {
   try {
-    const res = await mockGetStudentStats()
+    const res = await getStatistics()
     if (res.code === 200 && res.data) {
       const data = res.data
       statistics.value = {
-        totalWords: data.masteredWords || 0,
-        weekTotalTime: data.tasksCompleted || 0,
-        weekAvgTime: data.wrongQuestions || 0,
+        totalWords: data.totalWords || 0,
+        completedTasks: data.completedTasks || 0,
+        totalErrors: data.totalErrors || 0,
       }
     }
   } catch (error) {
     console.error('获取学情统计失败:', error)
-  }
-}
-
-// 获取近七天任务完成情况
-const fetchWeeklyTasks = async () => {
-  try {
-    const res = await mockGetWeeklyTasks()
-    if (res.code === 200 && res.data) {
-      const weekDayMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
-      dailyData.value = {
-        dates: res.data.map(item => {
-          const date = new Date(item.date)
-          return weekDayMap[date.getDay()]
-        }),
-        studyTime: res.data.map(item => item.completedCount || 0),
-        masteredWords: [],
-      }
-    }
-  } catch (error) {
-    console.error('获取近七天任务完成情况失败:', error)
   }
 }
 
@@ -192,83 +172,100 @@ let compareChart = null
 // 每日学习数据
 const dailyData = ref({
   dates: [],
-  studyTime: [],
-  masteredWords: [],
+  wordCounts: [],
+  taskCounts: [],
+  errorCounts: [],
+  studyMinutes: [],
 })
 
 // 班级vs个人完成率数据
-const compareData = {
-  dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-  classAvg: [75, 78, 80, 82, 85, 87, 88],
-  personal: [70, 75, 82, 85, 88, 90, 92],
+const compareData = ref({
+  weeks: [],
+  classRate: [],
+  myRate: [],
+})
+
+// 获取每日学习数据
+const fetchDailyStudy = async () => {
+  try {
+    const res = await getDailyStudy()
+    if (res.code === 200 && res.data) {
+      dailyData.value = res.data
+      // 更新图表
+      if (dailyChart) {
+        dailyChart.setOption({
+          xAxis: { data: res.data.dates },
+          series: [
+            { data: res.data.wordCounts },
+            { data: res.data.taskCounts },
+            { data: res.data.errorCounts },
+          ]
+        })
+      }
+    }
+  } catch (error) {
+    console.error('获取每日学习数据失败:', error)
+  }
+}
+
+// 获取完成率对比数据
+const fetchCompareRate = async () => {
+  try {
+    const res = await getCompareRate()
+    if (res.code === 200 && res.data) {
+      compareData.value = res.data
+      // 更新图表
+      if (compareChart) {
+        compareChart.setOption({
+          xAxis: { data: res.data.weeks },
+          series: [
+            { data: res.data.classRate },
+            { data: res.data.myRate },
+          ]
+        })
+      }
+    }
+  } catch (error) {
+    console.error('获取完成率对比数据失败:', error)
+  }
 }
 
 // 排名类型
 const rankType = ref('time')
 
-// 排名表格列
-const rankColumns = computed(() => {
-  const baseColumns = [
-    { title: '排名', dataIndex: 'rank', key: 'rank', width: 100 },
-    { title: '姓名', dataIndex: 'name', key: 'name', width: 150 },
-  ]
+// 排名数据
+const rankList = ref([])
+const maxStudyTime = ref(0)
+const maxWords = ref(0)
+const rankTotal = ref(0)
 
-  if (rankType.value === 'time') {
-    return [
-      ...baseColumns,
-      { title: '学习时长', key: 'studyTime', width: 300 },
-      { title: '掌握单词量', dataIndex: 'masteredWords', key: 'masteredWordsText', width: 150 },
-    ]
-  } else {
-    return [
-      ...baseColumns,
-      { title: '掌握单词量', key: 'masteredWords', width: 300 },
-      { title: '学习时长', dataIndex: 'studyTime', key: 'studyTimeText', width: 150 },
-    ]
+// 获取排名数据
+const fetchRanking = async (type) => {
+  try {
+    const res = await getRanking(type)
+    if (res.code === 200 && res.data) {
+      rankList.value = res.data.list || []
+      maxStudyTime.value = res.data.maxStudyTime || 0
+      maxWords.value = res.data.maxWords || 0
+      rankTotal.value = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('获取排名数据失败:', error)
   }
+}
+
+// 监听排名类型切换
+watch(rankType, (newType) => {
+  fetchRanking(newType)
 })
 
-// 按学习时长排名数据
-const rankByTime = ref([
-  { key: 1, rank: 1, name: '李明', studyTime: 22.5, masteredWords: 385, isMe: false },
-  { key: 2, rank: 2, name: '王芳', studyTime: 21.2, masteredWords: 368, isMe: false },
-  { key: 3, rank: 3, name: '张伟', studyTime: 20.8, masteredWords: 352, isMe: false },
-  { key: 4, rank: 4, name: '刘洋', studyTime: 19.5, masteredWords: 340, isMe: false },
-  { key: 5, rank: 5, name: '陈静', studyTime: 18.8, masteredWords: 328, isMe: false },
-  { key: 6, rank: 6, name: '我', studyTime: 18.5, masteredWords: 337, isMe: true },
-  { key: 7, rank: 7, name: '赵强', studyTime: 17.2, masteredWords: 315, isMe: false },
-  { key: 8, rank: 8, name: '孙丽', studyTime: 16.5, masteredWords: 298, isMe: false },
-  { key: 9, rank: 9, name: '周杰', studyTime: 15.8, masteredWords: 285, isMe: false },
-  { key: 10, rank: 10, name: '吴娜', studyTime: 14.2, masteredWords: 268, isMe: false },
-])
-
-// 按掌握单词量排名数据
-const rankByWords = ref([
-  { key: 1, rank: 1, name: '李明', studyTime: 22.5, masteredWords: 385, isMe: false },
-  { key: 2, rank: 2, name: '王芳', studyTime: 21.2, masteredWords: 368, isMe: false },
-  { key: 3, rank: 3, name: '张伟', studyTime: 20.8, masteredWords: 352, isMe: false },
-  { key: 4, rank: 4, name: '刘洋', studyTime: 19.5, masteredWords: 340, isMe: false },
-  { key: 5, rank: 5, name: '我', studyTime: 18.5, masteredWords: 337, isMe: true },
-  { key: 6, rank: 6, name: '陈静', studyTime: 18.8, masteredWords: 328, isMe: false },
-  { key: 7, rank: 7, name: '赵强', studyTime: 17.2, masteredWords: 315, isMe: false },
-  { key: 8, rank: 8, name: '孙丽', studyTime: 16.5, masteredWords: 298, isMe: false },
-  { key: 9, rank: 9, name: '周杰', studyTime: 15.8, masteredWords: 285, isMe: false },
-  { key: 10, rank: 10, name: '吴娜', studyTime: 14.2, masteredWords: 268, isMe: false },
-])
-
-// 当前排名数据
-const currentRankData = computed(() => {
-  return rankType.value === 'time' ? rankByTime.value : rankByWords.value
-})
-
-// 计算最大值用于进度条
-const maxStudyTime = computed(() => {
-  return Math.max(...currentRankData.value.map(item => item.studyTime))
-})
-
-const maxWords = computed(() => {
-  return Math.max(...currentRankData.value.map(item => item.masteredWords))
-})
+// 排名表格列
+const rankColumns = [
+  { title: '排名', dataIndex: 'rank', key: 'rank', width: 100 },
+  { title: '姓名', dataIndex: 'name', key: 'name', width: 150 },
+  { title: '学习时长', key: 'studyTime', width: 300 },
+  { title: '掌握单词', key: 'masteredWords', width: 300 },
+]
 
 // 初始化每日学习数据图表
 const initDailyChart = () => {
@@ -284,7 +281,7 @@ const initDailyChart = () => {
       },
     },
     legend: {
-      data: ['任务完成数'],
+      data: ['查词量', '完成任务', '错题数'],
       bottom: 0,
     },
     grid: {
@@ -301,7 +298,7 @@ const initDailyChart = () => {
     yAxis: [
       {
         type: 'value',
-        name: '完成数(个)',
+        name: '数量',
         position: 'left',
         axisLabel: {
           formatter: '{value}',
@@ -310,18 +307,30 @@ const initDailyChart = () => {
     ],
     series: [
       {
-        name: '任务完成数',
+        name: '查词量',
         type: 'line',
         smooth: true,
-        data: dailyData.value.studyTime,
+        data: dailyData.value.wordCounts,
         itemStyle: {
           color: '#1890ff',
         },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(24, 144, 255, 0.3)' },
-            { offset: 1, color: 'rgba(24, 144, 255, 0.05)' },
-          ]),
+      },
+      {
+        name: '完成任务',
+        type: 'line',
+        smooth: true,
+        data: dailyData.value.taskCounts,
+        itemStyle: {
+          color: '#52c41a',
+        },
+      },
+      {
+        name: '错题数',
+        type: 'line',
+        smooth: true,
+        data: dailyData.value.errorCounts,
+        itemStyle: {
+          color: '#faad14',
         },
       },
     ],
@@ -344,7 +353,7 @@ const initCompareChart = () => {
       },
     },
     legend: {
-      data: ['班级平均完成率', '个人完成率'],
+      data: ['班级平均', '我的完成率'],
       bottom: 0,
     },
     grid: {
@@ -355,7 +364,7 @@ const initCompareChart = () => {
     },
     xAxis: {
       type: 'category',
-      data: compareData.dates,
+      data: compareData.value.weeks,
     },
     yAxis: {
       type: 'value',
@@ -367,27 +376,27 @@ const initCompareChart = () => {
     },
     series: [
       {
-        name: '班级平均完成率',
+        name: '班级平均',
         type: 'line',
         smooth: true,
-        data: compareData.classAvg,
+        data: compareData.value.classRate,
         itemStyle: {
           color: '#faad14',
         },
         lineStyle: {
-          width: 3,
+          type: 'dashed',
         },
       },
       {
-        name: '个人完成率',
+        name: '我的完成率',
         type: 'line',
         smooth: true,
-        data: compareData.personal,
+        data: compareData.value.myRate,
         itemStyle: {
           color: '#1890ff',
         },
-        lineStyle: {
-          width: 3,
+        areaStyle: {
+          opacity: 0.3,
         },
       },
     ],
@@ -403,7 +412,12 @@ const handleResize = () => {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchStats(), fetchWeeklyTasks()])
+  await Promise.all([
+    fetchStats(),
+    fetchDailyStudy(),
+    fetchCompareRate(),
+    fetchRanking(rankType.value)
+  ])
   initDailyChart()
   initCompareChart()
   window.addEventListener('resize', handleResize)
