@@ -137,7 +137,7 @@ import {
   ClockCircleOutlined,
   FieldTimeOutlined,
 } from '@ant-design/icons-vue'
-import { getStudentStats, getWeeklyTasks } from '@/services/myData'
+import { mockGetStudentStats, mockGetWeeklyTasks } from '../mockjson/myprogress.js'
 
 // 顶部统计数据
 const statistics = ref({
@@ -149,11 +149,11 @@ const statistics = ref({
 // 获取学情统计数据
 const fetchStats = async () => {
   try {
-    const res = await getStudentStats()
+    const res = await mockGetStudentStats()
     if (res.code === 200 && res.data) {
       const data = res.data
       statistics.value = {
-        totalWords: data.totalWordsSearched || 0,
+        totalWords: data.masteredWords || 0,
         weekTotalTime: data.tasksCompleted || 0,
         weekAvgTime: data.wrongQuestions || 0,
       }
@@ -166,7 +166,7 @@ const fetchStats = async () => {
 // 获取近七天任务完成情况
 const fetchWeeklyTasks = async () => {
   try {
-    const res = await getWeeklyTasks()
+    const res = await mockGetWeeklyTasks()
     if (res.code === 200 && res.data) {
       const weekDayMap = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
       dailyData.value = {
@@ -199,8 +199,8 @@ const dailyData = ref({
 // 班级vs个人完成率数据
 const compareData = {
   dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-  classAvg: [75, 78, 80, 82, 85, 87, 88], // 班级平均完成率
-  personal: [70, 75, 82, 85, 88, 90, 92], // 个人完成率
+  classAvg: [75, 78, 80, 82, 85, 87, 88],
+  personal: [70, 75, 82, 85, 88, 90, 92],
 }
 
 // 排名类型

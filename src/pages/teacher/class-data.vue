@@ -49,19 +49,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import * as echarts from 'echarts'
+// 使用真实接口
+import {
+  getClassList,
+  getTaskCompletionChart,
+  getStudentActivityChart,
+  getErrorTypeChart
+} from '@/services/teacher/tmyclassdata'
 
 // 选中的班级
-const selectedClass = ref(1)
+const selectedClass = ref(null)
 
 // 班级列表
-const classList = ref([
-  { id: 1, name: '高级英语班', level: 'A' },
-  { id: 2, name: '中级英语班', level: 'B' },
-  { id: 3, name: '初级英语班', level: 'C' },
-  { id: 4, name: '基础英语班', level: 'D' }
-])
+const classList = ref([])
+
+// 当前班级的图表数据
+const chartData = ref({
+  taskCompletion: null,
+  studentActivity: null,
+  errorType: null
+})
 
 // 图表实例
 const taskCompletionChart = ref(null)
@@ -83,19 +92,76 @@ const getLevelColor = (level) => {
   return colorMap[level] || 'default'
 }
 
+// 加载班级列表（使用真实接口）
+const loadClassList = async () => {
+  try {
+    const res = await getClassList()
+    if (res.code === 200) {
+      classList.value = res.data
+      // 设置默认选中第一个班级
+      if (res.data.length > 0 && !selectedClass.value) {
+        selectedClass.value = res.data[0].id
+      }
+    }
+  } catch (error) {
+    console.error('获取班级列表失败:', error)
+  }
+}
+
+// 加载图表数据（使用真实接口）
+const loadChartData = async () => {
+  try {
+    const classId = selectedClass.value
+
+    // 加载任务完成数据
+    const taskRes = await getTaskCompletionChart(classId)
+    if (taskRes.code === 200) {
+      chartData.value.taskCompletion = taskRes.data
+    }
+
+    // 加载学生活跃度数据
+    const activityRes = await getStudentActivityChart(classId)
+    if (activityRes.code === 200) {
+      chartData.value.studentActivity = activityRes.data
+    }
+
+    // 加载错题类型分析数据
+    const errorRes = await getErrorTypeChart(classId)
+    if (errorRes.code === 200) {
+      chartData.value.errorType = errorRes.data
+    }
+  } catch (error) {
+    console.error('获取图表数据失败:', error)
+  }
+}
+
 // 初始化班级任务完成对比图
 const initTaskCompletionChart = () => {
   if (taskChart) {
     taskChart.dispose()
   }
-  
+
   taskChart = echarts.init(taskCompletionChart.value)
-  
+
+  const data = chartData.value.taskCompletion
+  const taskList = data?.taskList || []
+
+  const taskNames = taskList.map(t => t.taskName)
+  const completedData = taskList.map(t => t.completedCount)
+  const uncompletedData = taskList.map(t => t.totalStudents - t.completedCount)
+
   const option = {
     tooltip: {
       trigger: 'axis',
       axisPointer: {
         type: 'shadow'
+      },
+      formatter: (params) => {
+        const task = taskList[params[0].dataIndex]
+        return `<strong>${task.taskName}</strong><br/>
+                总人数: ${task.totalStudents}<br/>
+                已完成: ${task.completedCount} (${task.completionRate}%)<br/>
+                未完成: ${task.totalStudents - task.completedCount} (${100 - task.completionRate}%)`
       }
     },
     legend: {
@@ -111,7 +177,7 @@ const initTaskCompletionChart = () => {
     },
     xAxis: {
       type: 'category',
-      data: ['任务1', '任务2', '任务3', '任务4', '任务5', '任务6', '任务7', '任务8']
+      data: taskNames
     },
     yAxis: {
       type: 'value',
@@ -122,23 +188,30 @@ const initTaskCompletionChart = () => {
         name: '已完成',
         type: 'bar',
         stack: 'total',
-        data: [35, 38, 32, 40, 36, 39, 37, 34],
+        data: completedData,
         itemStyle: {
           color: '#52c41a'
+        },
+        label: {
+          show: true,
+          formatter: (params) => {
+            const task = taskList[params.dataIndex]
+            return `${task.completionRate}%`
+          }
         }
       },
       {
         name: '未完成',
         type: 'bar',
         stack: 'total',
-        data: [5, 2, 8, 0, 4, 1, 3, 6],
+        data: uncompletedData,
         itemStyle: {
           color: '#ff4d4f'
         }
       }
     ]
   }
-  
+
   taskChart.setOption(option)
 }
 
@@ -147,15 +220,29 @@ const initStudentActivityChart = () => {
   if (activityChart) {
     activityChart.dispose()
   }
-  
+
   activityChart = echarts.init(studentActivityChart.value)
-  
+
+  const data = chartData.value.studentActivity || {}
+  const days = data.days || []
+  const completedTasks = data.completedTasks || []
+  const exercises = data.exercises || []
+  const studyDuration = data.studyDuration || []
+
   const option = {
     tooltip: {
-      trigger: 'axis'
+      trigger: 'axis',
+      formatter: (params) => {
+        let result = `<strong>${params[0].axisValue}</strong><br/>`
+        params.forEach(item => {
+          const unit = item.seriesName === '学习时长' ? '分钟' : '次'
+          result += `${item.marker} ${item.seriesName}: ${item.value}${unit}<br/>`
+        })
+        return result
+      }
     },
     legend: {
-      data: ['完成任务数', '练习题数'],
+      data: ['完成任务数', '练习次数', '学习时长'],
       bottom: 0,
       left: 'center'
     },
@@ -168,7 +255,7 @@ const initStudentActivityChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+      data: days
     },
     yAxis: {
       type: 'value'
@@ -177,24 +264,33 @@ const initStudentActivityChart = () => {
       {
         name: '完成任务数',
         type: 'line',
-        data: [220, 182, 191, 234, 290, 330, 310],
+        data: completedTasks,
         smooth: true,
         itemStyle: {
           color: '#52c41a'
         }
       },
       {
-        name: '练习题数',
+        name: '练习次数',
         type: 'line',
-        data: [150, 232, 201, 154, 190, 330, 410],
+        data: exercises,
         smooth: true,
         itemStyle: {
           color: '#faad14'
         }
+      },
+      {
+        name: '学习时长',
+        type: 'bar',
+        yAxisIndex: 0,
+        data: studyDuration,
+        itemStyle: {
+          color: '#1890ff'
+        }
       }
     ]
   }
-  
+
   activityChart.setOption(option)
 }
 
@@ -203,22 +299,32 @@ const initErrorTypeChart = () => {
   if (errorChart) {
     errorChart.dispose()
   }
-  
+
   errorChart = echarts.init(errorTypeChart.value)
-  
+
+  const data = chartData.value.errorType || {}
+  const errorTypes = data.errorTypes || []
+
   const option = {
     tooltip: {
       trigger: 'item',
-      formatter: '{a} <br/>{b}: {c} ({d}%)'
+      formatter: (params) => {
+        if (params.seriesType === 'pie') {
+          return `<strong>${params.name}</strong><br/>
+                  错题数: ${params.value} 题<br/>
+                  占比: ${params.percent}%`
+        }
+        return params.name + ': ' + params.value
+      }
     },
     legend: {
       orient: 'vertical',
       left: 'left',
-      data: ['选择题', '填空题', '单词拼写']
+      data: errorTypes.map(e => e.type)
     },
     series: [
       {
-        name: '错题类型',
+        name: '错题分布',
         type: 'pie',
         radius: ['40%', '70%'],
         avoidLabelOverlap: false,
@@ -238,33 +344,21 @@ const initErrorTypeChart = () => {
             fontWeight: 'bold'
           }
         },
-        data: [
-          { 
-            value: 335, 
-            name: '选择题',
-            itemStyle: { color: '#1890ff' }
-          },
-          { 
-            value: 234, 
-            name: '填空题',
-            itemStyle: { color: '#52c41a' }
-          },
-          { 
-            value: 148, 
-            name: '单词拼写',
-            itemStyle: { color: '#faad14' }
-          }
-        ]
+        data: errorTypes.map(e => ({
+          name: e.type,
+          value: e.count
+        }))
       }
     ]
   }
-  
+
   errorChart.setOption(option)
 }
 
-// 处理班级切换
-const handleClassChange = () => {
+// 处理班级切换（使用真实接口）
+const handleClassChange = async () => {
   // 重新加载图表数据
+  await loadChartData()
   initTaskCompletionChart()
   initStudentActivityChart()
   initErrorTypeChart()
@@ -277,19 +371,24 @@ const handleResize = () => {
   errorChart?.resize()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载班级列表
+  await loadClassList()
+
+  // 加载图表数据
+  await loadChartData()
+
   nextTick(() => {
     initTaskCompletionChart()
     initStudentActivityChart()
     initErrorTypeChart()
-    
+
     // 监听窗口大小变化
     window.addEventListener('resize', handleResize)
   })
 })
 
 // 组件卸载时清理
-import { onBeforeUnmount } from 'vue'
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   taskChart?.dispose()

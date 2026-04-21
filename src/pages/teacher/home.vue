@@ -154,7 +154,14 @@ import FileTextOutlined from '@ant-design/icons-vue/FileTextOutlined'
 import PlusCircleOutlined from '@ant-design/icons-vue/PlusCircleOutlined'
 import CheckCircleOutlined from '@ant-design/icons-vue/CheckCircleOutlined'
 import WarningOutlined from '@ant-design/icons-vue/WarningOutlined'
-import { getTeacherDashboard, getLevelDistribution } from '@/services/teacher/tindex'
+// 使用真实接口
+import {
+  getTeacherDashboard,
+  getLevelDistribution,
+  getTaskCompletion,
+  getActivityTrend,
+  getErrorTypeDistribution
+} from '@/services/teacher/ttindex'
 
 const router = useRouter()
 
@@ -196,6 +203,55 @@ const fetchLevelDistribution = async () => {
   }
 }
 
+// 获取任务完成率数据
+const fetchTaskCompletion = async () => {
+  try {
+    const res = await getTaskCompletion()
+    if (res && res.code === 200) {
+      return {
+        classNames: res.data.classNames || [],
+        completionRates: res.data.completionRates || []
+      }
+    }
+    return { classNames: [], completionRates: [] }
+  } catch (error) {
+    console.error('获取任务完成率数据失败:', error)
+    return { classNames: [], completionRates: [] }
+  }
+}
+
+// 获取学生活跃度趋势数据
+const fetchActivityTrend = async () => {
+  try {
+    const res = await getActivityTrend()
+    if (res && res.code === 200) {
+      return {
+        days: res.data.days || [],
+        completedTasks: res.data.completedTasks || [],
+        exercises: res.data.exercises || []
+      }
+    }
+    return { days: [], completedTasks: [], exercises: [] }
+  } catch (error) {
+    console.error('获取学生活跃度趋势数据失败:', error)
+    return { days: [], completedTasks: [], exercises: [] }
+  }
+}
+
+// 获取错题类型分布数据
+const fetchErrorTypeDistribution = async () => {
+  try {
+    const res = await getErrorTypeDistribution()
+    if (res && res.code === 200 && Array.isArray(res.data)) {
+      return res.data
+    }
+    return []
+  } catch (error) {
+    console.error('获取错题类型分布数据失败:', error)
+    return []
+  }
+}
+
 // 图表实例引用
 const taskCompletionChart = ref(null)
 const activityTrendChart = ref(null)
@@ -208,20 +264,14 @@ let errorChart = null
 let levelChart = null
 
 // 初始化各班级任务完成率对比图
-// 数据来源: 教师的班级列表
-// 统计规则: 每日下午5点整点后统计当日任务完成率
-const initTaskCompletionChart = () => {
+// 数据来源: /teacher-home/task-completion 接口
+const initTaskCompletionChart = (taskData = { classNames: [], completionRates: [] }) => {
   if (taskChart) {
     taskChart.dispose()
   }
-  
+
   taskChart = echarts.init(taskCompletionChart.value)
-  
-  // TODO: 从后端获取教师的班级列表和完成率数据
-  // 示例数据结构:
-  // const classData = await fetchTeacherClasses()
-  // const completionData = await fetchDailyCompletion(classData, '17:00')
-  
+
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -231,23 +281,23 @@ const initTaskCompletionChart = () => {
     },
     legend: {
       data: ['完成率'],
-      bottom: 0,  // 放置在底部
-      left: 'center',  // 水平居中
-      itemGap: 20  // 图例项之间的间距
+      bottom: 0,
+      left: 'center',
+      itemGap: 20
     },
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '40px',  // 增加底部空间，为图例留出位置（横坐标 + 8px间距 + 图例高度）
+      bottom: '40px',
       top: '10%',
       containLabel: true
     },
     xAxis: {
       type: 'category',
-      data: ['A级-高级班', 'B级-中级班', 'C级-初级班', 'D级-基础班', 'A级-进阶班', 'B级-提高班', 'C级-入门班', 'D级-启蒙班'],
+      data: taskData.classNames.length > 0 ? taskData.classNames : ['暂无数据'],
       axisLabel: {
         interval: 0,
-        rotate: 30  // 旋转标签避免重叠
+        rotate: 30
       }
     },
     yAxis: {
@@ -259,7 +309,7 @@ const initTaskCompletionChart = () => {
       {
         name: '完成率',
         type: 'bar',
-        data: [85, 78, 92, 65, 88, 75, 80, 70],
+        data: taskData.completionRates.length > 0 ? taskData.completionRates : [0],
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#83bff6' },
@@ -275,39 +325,40 @@ const initTaskCompletionChart = () => {
       }
     ]
   }
-  
+
   taskChart.setOption(option)
 }
 
 // 初始化学生活跃度趋势图
-const initActivityTrendChart = () => {
+// 数据来源: /teacher-home/activity-trend 接口
+const initActivityTrendChart = (activityData = { days: [], completedTasks: [], exercises: [] }) => {
   if (activityChart) {
     activityChart.dispose()
   }
-  
+
   activityChart = echarts.init(activityTrendChart.value)
-  
+
   const option = {
     tooltip: {
       trigger: 'axis'
     },
     legend: {
       data: ['完成任务数', '练习题数'],
-      bottom: 0,  // 放置在底部
-      left: 'center',  // 水平居中
-      itemGap: 20  // 图例项之间的间距
+      bottom: 0,
+      left: 'center',
+      itemGap: 20
     },
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '40px',  // 增加底部空间，为图例留出位置（横坐标 + 8px间距 + 图例高度）
+      bottom: '40px',
       top: '10%',
       containLabel: true
     },
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+      data: activityData.days.length > 0 ? activityData.days : ['暂无数据']
     },
     yAxis: {
       type: 'value'
@@ -316,7 +367,7 @@ const initActivityTrendChart = () => {
       {
         name: '完成任务数',
         type: 'line',
-        data: [220, 182, 191, 234, 290, 330, 310],
+        data: activityData.completedTasks.length > 0 ? activityData.completedTasks : [0],
         smooth: true,
         itemStyle: {
           color: '#52c41a'
@@ -331,7 +382,7 @@ const initActivityTrendChart = () => {
       {
         name: '练习题数',
         type: 'line',
-        data: [150, 232, 201, 154, 190, 330, 410],
+        data: activityData.exercises.length > 0 ? activityData.exercises : [0],
         smooth: true,
         itemStyle: {
           color: '#faad14'
@@ -339,18 +390,35 @@ const initActivityTrendChart = () => {
       }
     ]
   }
-  
+
   activityChart.setOption(option)
 }
 
 // 初始化错题类型分布图
-const initErrorTypeChart = () => {
+// 数据来源: /teacher-home/error-type-distribution 接口
+const initErrorTypeChart = (errorData = []) => {
   if (errorChart) {
     errorChart.dispose()
   }
-  
+
   errorChart = echarts.init(errorTypeChart.value)
-  
+
+  // 错题类型对应的颜色
+  const typeColors = {
+    '选择题': '#1890ff',
+    '填空题': '#52c41a',
+    '单词拼写': '#faad14'
+  }
+
+  // 转换数据格式
+  const chartData = errorData.map(item => ({
+    value: item.count,
+    name: item.type,
+    itemStyle: { color: typeColors[item.type] || '#999' }
+  }))
+
+  const legendData = errorData.map(item => item.type)
+
   const option = {
     tooltip: {
       trigger: 'item',
@@ -359,7 +427,7 @@ const initErrorTypeChart = () => {
     legend: {
       orient: 'vertical',
       left: 'left',
-      data: ['选择题', '填空题', '单词拼写']
+      data: legendData.length > 0 ? legendData : ['选择题', '填空题', '单词拼写']
     },
     series: [
       {
@@ -383,27 +451,15 @@ const initErrorTypeChart = () => {
             fontWeight: 'bold'
           }
         },
-        data: [
-          { 
-            value: 335, 
-            name: '选择题',
-            itemStyle: { color: '#1890ff' }
-          },
-          { 
-            value: 234, 
-            name: '填空题',
-            itemStyle: { color: '#52c41a' }
-          },
-          { 
-            value: 148, 
-            name: '单词拼写',
-            itemStyle: { color: '#faad14' }
-          }
+        data: chartData.length > 0 ? chartData : [
+          { value: 0, name: '选择题', itemStyle: { color: '#1890ff' } },
+          { value: 0, name: '填空题', itemStyle: { color: '#52c41a' } },
+          { value: 0, name: '单词拼写', itemStyle: { color: '#faad14' } }
         ]
       }
     ]
   }
-  
+
   errorChart.setOption(option)
 }
 
@@ -503,16 +559,21 @@ const handleResize = () => {
 
 onMounted(() => {
   nextTick(async () => {
-    // 先获取首页数据
+    // 获取首页数据
     await fetchDashboardData()
 
-    // 获取班级等级分布数据
-    const levelData = await fetchLevelDistribution()
+    // 并行获取所有图表数据
+    const [levelData, taskData, activityData, errorData] = await Promise.all([
+      fetchLevelDistribution(),
+      fetchTaskCompletion(),
+      fetchActivityTrend(),
+      fetchErrorTypeDistribution()
+    ])
 
     // 初始化图表
-    initTaskCompletionChart()
-    initActivityTrendChart()
-    initErrorTypeChart()
+    initTaskCompletionChart(taskData)
+    initActivityTrendChart(activityData)
+    initErrorTypeChart(errorData)
     initClassLevelChart(levelData)
 
     // 监听窗口大小变化

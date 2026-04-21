@@ -41,7 +41,8 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import authService from '@/services/authService'
+import { message } from 'ant-design-vue'
+import { mockRegister } from '@/pages/mockjson/auth.js'
 
 const router = useRouter()
 
@@ -79,17 +80,18 @@ const handleRegister = async () => {
   loading.value = true
   
   try {
-    await authService.register({
-      username,
-      password,
-      code
-    })
+    // 使用模拟注册
+    const res = await mockRegister(username, password, code)
     
-    successMsg.value = '注册成功！2秒后跳转到登录页...'
-    
-    setTimeout(() => {
-      router.push('/login')
-    }, 2000)
+    if (res.code === 200) {
+      successMsg.value = '注册成功！2秒后跳转到登录页...'
+      
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    } else {
+      errorMsg.value = res.msg || '注册失败，请重试'
+    }
   } catch (error) {
     errorMsg.value = error.message || '注册失败，请重试'
   } finally {

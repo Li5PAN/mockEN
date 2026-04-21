@@ -191,7 +191,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
-import { getMyClassInfo, getClassList, applyChangeClass as applyChangeClassApi } from '@/services/myClass'
+import {
+  mockGetMyClassInfo,
+  mockGetClassList,
+  mockApplyChangeClass
+} from '../mockjson/myclass.js'
 
 const router = useRouter()
 
@@ -214,16 +218,15 @@ const currentClass = ref({
   completedTasks: 0
 })
 
-// 所有班级数据（从API获取）
+// 所有班级数据
 const allClasses = ref([])
 
 // 加载可选班级列表
 const fetchClassList = async (level) => {
   loading.value = true
   try {
-    const res = await getClassList(level)
+    const res = await mockGetClassList(level)
     if (res.code === 200) {
-      // 映射API返回的字段到页面使用的字段
       allClasses.value = res.rows.map(item => ({
         id: item.classId,
         level: item.classLevel,
@@ -241,7 +244,7 @@ const fetchClassList = async (level) => {
   }
 }
 
-// 监听等级切换，重新获取班级列表
+// 监听等级切换
 const handleLevelChange = (level) => {
   selectedLevel.value = level
   fetchClassList(level)
@@ -250,7 +253,7 @@ const handleLevelChange = (level) => {
 // 加载我的班级信息
 const loadMyClassInfo = async () => {
   try {
-    const res = await getMyClassInfo()
+    const res = await mockGetMyClassInfo()
     if (res.code === 200 && res.data) {
       const data = res.data
       currentClass.value = {
@@ -270,17 +273,16 @@ const loadMyClassInfo = async () => {
   }
 }
 
-// 组件挂载时获取当前班级信息和班级列表
+// 组件挂载时
 onMounted(async () => {
   await loadMyClassInfo()
-  // 默认获取当前班级同级的班级列表
   if (currentClass.value.level) {
     selectedLevel.value = currentClass.value.level
   }
   fetchClassList(selectedLevel.value)
 })
 
-// 等级排序（A最高，D最低）
+// 等级排序
 const levelOrder = { A: 4, B: 3, C: 2, D: 1 }
 
 // 根据选中等级过滤班级
@@ -288,27 +290,25 @@ const filteredClasses = computed(() => {
   return allClasses.value.filter(cls => cls.level === selectedLevel.value)
 })
 
-// 判断是否可以换到该等级的班级（可以换同级、高一级、低级，但不能超过高一级）
+// 判断是否可以换到该等级的班级
 const canChangeToClass = (classLevel) => {
   const currentLevelValue = levelOrder[currentClass.value.level]
   const targetLevelValue = levelOrder[classLevel]
   
-  // 可以换到同级、低级、或高一级
   return targetLevelValue <= currentLevelValue + 1
 }
 
-// 可换班级列表（同级或高一级）- 保留用于兼容
+// 可换班级列表
 const availableClasses = computed(() => {
   if (currentClass.value.myCompletionRate < 100) {
     return []
   }
 
-  const levelOrder = ['D', 'C', 'B', 'A']
-  const currentLevelIndex = levelOrder.indexOf(currentClass.value.level)
+  const levelOrderList = ['D', 'C', 'B', 'A']
+  const currentLevelIndex = levelOrderList.indexOf(currentClass.value.level)
   
   return allClasses.value.filter(cls => {
-    const clsLevelIndex = levelOrder.indexOf(cls.level)
-    // 同级或高一级
+    const clsLevelIndex = levelOrderList.indexOf(cls.level)
     return clsLevelIndex >= currentLevelIndex && clsLevelIndex <= currentLevelIndex + 1
   })
 })
@@ -339,7 +339,7 @@ const confirmChange = async () => {
   
   submitLoading.value = true
   try {
-    const res = await applyChangeClassApi(selectedClass.value.id)
+    const res = await mockApplyChangeClass(selectedClass.value.id)
     if (res.code === 200) {
       message.success('换班申请提交成功，请等待老师审核')
       changeModalVisible.value = false

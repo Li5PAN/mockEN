@@ -25,7 +25,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import authService from '@/services/authService'
+import authService from '@/services/authService.js'
 
 const router = useRouter()
 const loginForm = ref({ username: '', password: '' })
@@ -34,9 +34,9 @@ const loading = ref(false)
 
 // 角色类型映射路由
 const roleMap = {
-  '1': { route: '/student/home', roleName: 'student' },
-  '2': { route: '/teacher/home', roleName: 'teacher' },
-  '3': { route: '/admin/home', roleName: 'admin' }
+  'student': { route: '/student/home', roleName: 'student' },
+  'teacher': { route: '/teacher/home', roleName: 'teacher' },
+  'admin': { route: '/admin/home', roleName: 'admin' }
 }
 
 const handleLogin = async () => {
@@ -53,31 +53,25 @@ const handleLogin = async () => {
     // 调用真实登录接口
     const res = await authService.login({ username, password })
 
-    // 登录成功后获取用户信息
-    const infoRes = await authService.getUserInfo()
-    const user = infoRes.user
-    const roles = infoRes.roles || []
-
-    // 判断角色类型，后端返回的 roles 数组中匹配
-    let roleType = '1' // 默认学生
-    if (roles.includes('admin')) {
-      roleType = '3'
-    } else if (roles.includes('teacher')) {
-      roleType = '2'
-    }
-
-    const roleInfo = roleMap[roleType]
-
-    // 保存用户信息
+    // 登录成功后，authService 已经保存了 token
+    // 这里获取用户信息并保存
     const userInfo = {
-      userId: user.userId,
-      username: user.userName,
-      name: user.nickName || user.userName,
-      role: roleInfo.roleName,
-      roleType
+      userId: res.data?.userInfo?.id || res.data?.user?.id,
+      username: res.data?.userInfo?.username || res.data?.user?.username,
+      name: res.data?.userInfo?.name || res.data?.user?.name,
+      role: res.data?.userInfo?.role || res.data?.user?.role,
+      roles: res.data?.userInfo?.roles || res.data?.user?.roles,
+      className: res.data?.userInfo?.className || res.data?.user?.className,
+      classLevel: res.data?.userInfo?.classLevel || res.data?.user?.classLevel,
+      teacherName: res.data?.userInfo?.teacherName || res.data?.user?.teacherName
     }
     localStorage.setItem('userInfo', JSON.stringify(userInfo))
 
+    const roleInfo = roleMap[userInfo.role]
+    if (!roleInfo) {
+      errorMsg.value = '用户角色异常'
+      return
+    }
     message.success('登录成功')
     router.push(roleInfo.route)
   } catch (error) {

@@ -69,7 +69,7 @@
           <a-col :span="24" v-else-if="filteredClasses.length === 0" style="text-align: center; padding: 40px; color: #999">
             <a-empty description="该等级暂无班级" />
           </a-col>
-          <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="cls in filteredClasses" :key="cls.id" v-else>
+          <a-col :xs="24" :sm="12" :md="8" :lg="6" v-for="cls in filteredClasses" :key="cls.classId">
             <a-card hoverable class="class-card" @click="applyToClass(cls)">
               <div class="class-header">
                 <a-tag :color="getLevelColor(cls.level)" class="level-tag">{{ cls.level }}级</a-tag>
@@ -229,7 +229,14 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
-import { getClassStatus, getMyClassInfo, getClassList, getClassRanking, joinClass, quitClass } from '@/services/myClass'
+import {
+  mockGetClassStatus,
+  mockGetMyClassInfo,
+  mockGetClassList,
+  mockGetClassRanking,
+  mockJoinClass,
+  mockQuitClass
+} from '../mockjson/myclass.js'
 
 const router = useRouter()
 
@@ -237,10 +244,10 @@ const router = useRouter()
 const hasClass = ref(false)
 
 // 是否是首次入班（首次入班只能选D级）
-const isFirstJoin = ref(true) // 如果之前加入过班级，改为 false
+const isFirstJoin = ref(true)
 
-// 上一次班级等级（用于退出班级后的限制）
-const lastClassLevel = ref(null) // 退出班级后会记录上次等级
+// 上一次班级等级
+const lastClassLevel = ref(null)
 
 // 选中的等级
 const selectedLevel = ref('D')
@@ -248,14 +255,14 @@ const selectedLevel = ref('D')
 // 加载状态
 const loading = ref(false)
 
-// 所有班级列表（从API获取）
+// 所有班级列表
 const allClasses = ref([])
 
 // 加载可选班级列表
 const fetchClassList = async (level) => {
   loading.value = true
   try {
-    const res = await getClassList(level)
+    const res = await mockGetClassList(level)
     if (res.code === 200) {
       allClasses.value = res.rows.map(item => ({
         id: item.classId,
@@ -284,7 +291,7 @@ const filteredClasses = computed(() => {
   return allClasses.value.filter(cls => cls.level === selectedLevel.value)
 })
 
-// D级班级列表（保留兼容性）
+// D级班级列表
 const dLevelClasses = computed(() => {
   return allClasses.value.filter(cls => cls.level === 'D')
 })
@@ -305,47 +312,41 @@ const currentClass = ref({
 
 // 班级状态枚举
 const ClassStatus = {
-  NO_CLASS: 0,       // 无班级
-  JOINED: 1,         // 已入班
-  APPLYING_JOIN: 2,   // 申请入班中
-  APPLYING_QUIT: 3,   // 申请退班中
-  APPLYING_CHANGE: 4  // 申请转班中
+  NO_CLASS: 0,
+  JOINED: 1,
+  APPLYING_JOIN: 2,
+  APPLYING_QUIT: 3,
+  APPLYING_CHANGE: 4
 }
 
 // 加载学生班级状态
 const loadClassStatus = async () => {
   try {
-    const res = await getClassStatus()
+    const res = await mockGetClassStatus()
     if (res.code === 200 && res.data) {
       const data = res.data
       const status = data.status
       isFirstJoin.value = data.isFirstJoin
 
-      // 根据状态码判断显示内容
-      if (status === ClassStatus.JOINED) {
-        // 已入班，加载班级详情
+      if (status === 1) { // 已入班
         hasClass.value = true
         currentClassId.value = data.currentClassId
         currentClassName.value = data.currentClassName
         await loadMyClassInfo()
-      } else if (status === ClassStatus.APPLYING_JOIN) {
-        // 申请入班中
+      } else if (status === 2) { // 申请入班中
         hasClass.value = false
         currentClassId.value = null
         currentClassName.value = null
         pendingApplication.value = data.pendingApplication
-      } else if (status === ClassStatus.APPLYING_QUIT) {
-        // 申请退班中
+      } else if (status === 3) { // 申请退班中
         hasClass.value = true
         await loadMyClassInfo()
         message.info(`退班申请正在审核中，请等待老师处理`)
-      } else if (status === ClassStatus.APPLYING_CHANGE) {
-        // 申请转班中
+      } else if (status === 4) { // 申请换班中
         hasClass.value = true
         await loadMyClassInfo()
         message.info(`转班申请正在审核中，请等待老师处理`)
-      } else {
-        // 无班级 (status === ClassStatus.NO_CLASS)
+      } else { // 未入班
         hasClass.value = false
         currentClassId.value = null
         currentClassName.value = null
@@ -360,10 +361,10 @@ const loadClassStatus = async () => {
 const currentClassId = ref(null)
 const currentClassName = ref(null)
 
-// 加载我的班级信息（详细）
+// 加载我的班级信息
 const loadMyClassInfo = async () => {
   try {
-    const res = await getMyClassInfo()
+    const res = await mockGetMyClassInfo()
     if (res.code === 200 && res.data) {
       const data = res.data
       currentClass.value = {
@@ -384,7 +385,7 @@ const loadMyClassInfo = async () => {
   }
 }
 
-// 是否可以换班（任务完成率达到100%）
+// 是否可以换班
 const canChangeClass = computed(() => currentClass.value.myCompletionRate === 100)
 
 // 待审核申请信息
@@ -401,17 +402,15 @@ const getLevelColorHex = (level) => {
   return colors[level] || '#666'
 }
 
-// 等级排序（A最高，D最低）
+// 等级排序
 const levelOrder = { A: 4, B: 3, C: 2, D: 1 }
 
 // 判断是否可以申请该班级
 const canApplyClass = (classLevel) => {
-  // 首次入班只能选D级
   if (isFirstJoin.value) {
     return classLevel === 'D'
   }
   
-  // 退出班级后，不能选择比上次更高等级的班级
   if (lastClassLevel.value) {
     return levelOrder[classLevel] <= levelOrder[lastClassLevel.value]
   }
@@ -443,16 +442,20 @@ const rankColumns = [
 // 排行榜数据
 const topRankData = ref([])
 
-// 获取当前用户ID（假设从用户信息中获取）
+// 获取当前用户ID
 const getCurrentUserId = () => {
-  // 实际应从 store 或 localStorage 中获取
+  const userInfoStr = localStorage.getItem('userInfo')
+  if (userInfoStr) {
+    const userInfo = JSON.parse(userInfoStr)
+    return userInfo.userId
+  }
   return null
 }
 
 // 加载班级排行榜
 const loadClassRanking = async () => {
   try {
-    const res = await getClassRanking()
+    const res = await mockGetClassRanking()
     if (res.code === 200 && res.data) {
       const currentUserId = getCurrentUserId()
       topRankData.value = res.data.map((item, index) => ({
@@ -552,7 +555,7 @@ const initTrendChart = () => {
   window.addEventListener('resize', () => chart.resize())
 }
 
-// 当前显示的数据（循环显示）- 保留用于兼容
+// 当前显示的数据
 const displayRankData = computed(() => {
   const data = []
   for (let i = 0; i < itemsPerPage; i++) {
@@ -569,14 +572,13 @@ const startTableScroll = () => {
     if (!tableBody) return
     
     let scrollTop = 0
-    const scrollStep = 1 // 每次滚动的像素
-    const scrollInterval = 50 // 滚动间隔（毫秒）
+    const scrollStep = 1
+    const scrollInterval = 50
     
     scrollTimer = setInterval(() => {
       scrollTop += scrollStep
       tableBody.scrollTop = scrollTop
       
-      // 当滚动到底部时，重置到顶部实现循环
       if (tableBody.scrollTop >= tableBody.scrollHeight - tableBody.clientHeight) {
         scrollTop = 0
         tableBody.scrollTop = 0
@@ -589,7 +591,7 @@ const startTableScroll = () => {
 const startCarousel = () => {
   carouselTimer = setInterval(() => {
     currentIndex.value = (currentIndex.value + 1) % topRankData.value.length
-  }, 3000) // 每3秒滚动一次
+  }, 3000)
 }
 
 // 停止轮播
@@ -613,13 +615,11 @@ const applyModalVisible = ref(false)
 const selectedClass = ref(null)
 
 const applyToClass = (cls) => {
-  // 检查是否有待审核的申请
   if (pendingApplication.value) {
     message.warning('您有待审核的申请，请等待审核结果后再操作')
     return
   }
 
-  // 检查是否符合申请条件
   if (!canApplyClass(cls.level)) {
     message.warning('您当前的条件不符合进入该班级')
     return
@@ -633,10 +633,21 @@ const confirmApply = async () => {
   if (!selectedClass.value) return
 
   try {
-    const res = await joinClass(selectedClass.value.id)
+    const res = await mockJoinClass(selectedClass.value.classId || selectedClass.value.id)
     if (res.code === 200) {
-      message.success(`已提交入班申请到 ${selectedClass.value.name}，请等待老师审核`)
+      message.success(`已成功加入 ${selectedClass.value.name}！`)
       applyModalVisible.value = false
+
+      // 刷新班级状态和班级信息
+      await loadClassStatus()
+
+      if (hasClass.value) {
+        // 加载排行榜和图表
+        await loadClassRanking()
+        await nextTick()
+        initTrendChart()
+        startTableScroll()
+      }
     } else {
       message.error(res.msg || '入班申请提交失败')
     }
@@ -655,22 +666,21 @@ const showExitModal = () => {
 
 const confirmExit = async () => {
   try {
-    const res = await quitClass()
+    const res = await mockQuitClass()
     if (res.code === 200) {
-      // 记录当前班级等级
-      lastClassLevel.value = currentClass.value.level
-      
+      // 保存上次班级等级
+      const currentLevel = currentClass.value.level
+      localStorage.setItem('lastClassLevel_' + getCurrentUsername(), currentLevel)
+
       message.success('已成功退出班级')
       exitModalVisible.value = false
       hasClass.value = false
       isFirstJoin.value = false
       stopCarousel()
       stopTableScroll()
-      
-      // 重置为上次等级或D级标签
-      selectedLevel.value = lastClassLevel.value || 'D'
-      
-      // 清空排行榜数据
+
+      selectedLevel.value = currentLevel || 'D'
+
       topRankData.value = []
     } else {
       message.warning(res.msg || '操作失败')
@@ -688,7 +698,6 @@ const goToChangeClass = () => {
 
 // 生命周期
 onMounted(async () => {
-  // 先加载班级状态，根据状态决定显示内容
   await loadClassStatus()
 
   if (hasClass.value) {
@@ -696,7 +705,6 @@ onMounted(async () => {
     initTrendChart()
     startTableScroll()
   } else {
-    // 未入班时，加载班级列表
     await fetchClassList(selectedLevel.value)
   }
 })

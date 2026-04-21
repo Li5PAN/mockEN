@@ -244,7 +244,14 @@ import {
   DeleteOutlined, 
   SoundOutlined 
 } from '@ant-design/icons-vue'
-import { getFavoriteWords, toggleWordCollect, deleteFavoriteWords, matchWordAnswer } from '../../services/wordService'
+import {
+  getFavoriteList,
+  collectWord,
+  uncollectWord,
+  deleteFavorite,
+  checkSpelling as apiCheckSpelling,
+  checkFillBlank as apiCheckFillBlank
+} from '../../services/student/swordlearn.js'
 
 const router = useRouter()
 
@@ -259,7 +266,7 @@ const currentIndex = ref(0)
 const userInput = ref('')
 const showResult = ref(false)
 const isCorrect = ref(false)
-const correctAnswer = ref('') // 保存正确答案
+const correctAnswer = ref('')
 const fillInputs = ref({})
 
 // 计算属性
@@ -275,7 +282,7 @@ const filteredWords = computed(() => {
 
 const currentWord = computed(() => filteredWords.value[currentIndex.value] || {})
 
-// 填空显示（进入新单词时初始化一次）
+// 填空显示
 const displayWord = ref([])
 
 const initFillMode = () => {
@@ -311,13 +318,14 @@ const handleSearch = () => {
 const loadFavorites = async () => {
   loading.value = true
   try {
-    const words = await getFavoriteWords()
-    favoriteWords.value = words
+    const res = await getFavoriteList()
+    if (res.code === 200) {
+      favoriteWords.value = res.records || []
+    }
     
-    if (words.length === 0) {
+    if (favoriteWords.value.length === 0) {
       message.info('暂无收藏单词')
     } else {
-      // 初始化填空模式
       initFillMode()
     }
   } catch (error) {
@@ -330,9 +338,12 @@ const loadFavorites = async () => {
 
 const removeFavorite = async (word) => {
   try {
-    console.log('取消收藏单词, wordId:', word.wordId)
-    // 使用 wordId 调用取消收藏接口
-    await toggleWordCollect(word.wordId, false)
+    // 优先使用 collectionId 删除，否则使用 wordId
+    if (word.collectionId) {
+      await deleteFavorite(word.collectionId)
+    } else {
+      await uncollectWord(word.wordId)
+    }
     message.success('已取消收藏')
     await loadFavorites()
   } catch (error) {
@@ -362,21 +373,13 @@ const checkSpelling = async () => {
   if (!userInput.value || !currentWord.value.wordId) return
 
   try {
-    const res = await matchWordAnswer({
+    const res = await apiCheckSpelling({
       wordId: currentWord.value.wordId,
-      userAnswer: userInput.value,
-      matchType: 2 // 2=单词拼写
+      userAnswer: userInput.value
     })
     
-    // 后端返回 isCorrect（驼峰命名）
-    const backendCorrect = res.data?.isCorrect ?? res.correct
-    // 如果后端返回的正确答案与用户答案一致（忽略大小写），则判定为正确
-    if (res.data?.correctAnswer && res.data.correctAnswer.toLowerCase() === userInput.value.toLowerCase().trim()) {
-      isCorrect.value = true
-    } else {
-      isCorrect.value = backendCorrect
-    }
-    correctAnswer.value = res.data?.correctAnswer || res.correctAnswer || currentWord.value.word
+    isCorrect.value = res.data?.isCorrect ?? false
+    correctAnswer.value = res.data?.correctAnswer || currentWord.value.word
     showResult.value = true
 
     if (isCorrect.value) {
@@ -397,21 +400,13 @@ const checkFill = async () => {
   }).join('')
 
   try {
-    const res = await matchWordAnswer({
+    const res = await apiCheckFillBlank({
       wordId: currentWord.value.wordId,
-      userAnswer: userAnswer,
-      matchType: 5 // 5=填空题
+      userAnswer: userAnswer
     })
     
-    // 后端返回 isCorrect（驼峰命名）
-    const backendCorrect = res.data?.isCorrect ?? res.correct
-    // 如果后端返回的正确答案与用户答案一致（忽略大小写），则判定为正确
-    if (res.data?.correctAnswer && res.data.correctAnswer.toLowerCase() === userAnswer.toLowerCase().trim()) {
-      isCorrect.value = true
-    } else {
-      isCorrect.value = backendCorrect
-    }
-    correctAnswer.value = res.data?.correctAnswer || res.correctAnswer || currentWord.value.word
+    isCorrect.value = res.data?.isCorrect ?? false
+    correctAnswer.value = res.data?.correctAnswer || currentWord.value.word
     showResult.value = true
 
     if (isCorrect.value) {
@@ -441,7 +436,6 @@ const resetPracticeState = () => {
   isCorrect.value = false
   correctAnswer.value = ''
   fillInputs.value = {}
-  // 重新初始化填空模式（生成新的随机空白）
   initFillMode()
 }
 

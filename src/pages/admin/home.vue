@@ -146,7 +146,7 @@ import SolutionOutlined from '@ant-design/icons-vue/SolutionOutlined'
 import AuditOutlined from '@ant-design/icons-vue/AuditOutlined'
 import UserAddOutlined from '@ant-design/icons-vue/UserAddOutlined'
 import CheckCircleOutlined from '@ant-design/icons-vue/CheckCircleOutlined'
-import { getDashboardData } from '@/services/admin/aindex'
+import { getOverview, getLevelDistribution, getUserGrowthTrend, getClassChangeTrend, getDropClassTrend, getClassCreateTrend } from '@/services/admin/aaindex'
 
 const router = useRouter()
 
@@ -164,19 +164,119 @@ const pendingTasks = reactive({
   activeUsers: 0
 })
 
-// 获取首页数据
-const fetchDashboardData = async () => {
+// 图表数据
+const userGrowthData = ref([])
+const levelDistributionData = ref([])
+const classChangeData = ref([])
+const dropClassData = ref([])
+const classCreateData = ref([])
+
+// 获取首页概览数据
+const fetchOverview = async () => {
   try {
-    const res = await getDashboardData()
+    const res = await getOverview()
     if (res.code === 200 && res.data) {
       statistics.totalStudents = res.data.totalStudents || 0
       statistics.totalClasses = res.data.totalClasses || 0
       statistics.totalTeachers = res.data.totalTeachers || 0
-      pendingTasks.pendingClasses = res.data.pendingClasses || 0
+      pendingTasks.pendingClasses = res.data.pendingApplications || 0
+      pendingTasks.activeUsers = res.data.activeToday || 0
     }
   } catch (error) {
-    console.error('获取首页数据失败:', error)
+    console.error('获取概览数据失败:', error)
   }
+}
+
+// 获取用户增长趋势数据
+const fetchUserGrowthTrend = async () => {
+  try {
+    const res = await getUserGrowthTrend()
+    if (res.code === 200 && res.data) {
+      userGrowthData.value = res.data
+      initUserGrowthChart(res.data)
+    }
+  } catch (error) {
+    console.error('获取用户增长趋势失败:', error)
+  }
+}
+
+// 获取等级分布数据
+const fetchLevelDistribution = async () => {
+  try {
+    const res = await getLevelDistribution()
+    if (res.code === 200 && res.data) {
+      levelDistributionData.value = res.data
+      initClassDistributionChart(res.data)
+    }
+  } catch (error) {
+    console.error('获取等级分布失败:', error)
+  }
+}
+
+// 获取换班变化趋势数据
+const fetchClassChangeTrend = async () => {
+  try {
+    const res = await getClassChangeTrend()
+    if (res.code === 200 && res.data) {
+      classChangeData.value = res.data
+      hasTransferData.value = res.data.length > 0
+      if (hasTransferData.value) {
+        nextTick(() => {
+          initTransferChart(res.data)
+        })
+      }
+    }
+  } catch (error) {
+    console.error('获取换班变化趋势失败:', error)
+  }
+}
+
+// 获取退班变化趋势数据
+const fetchDropClassTrend = async () => {
+  try {
+    const res = await getDropClassTrend()
+    if (res.code === 200 && res.data) {
+      dropClassData.value = res.data
+      hasQuitData.value = res.data.length > 0
+      if (hasQuitData.value) {
+        nextTick(() => {
+          initQuitChart(res.data)
+        })
+      }
+    }
+  } catch (error) {
+    console.error('获取退班变化趋势失败:', error)
+  }
+}
+
+// 获取班级创建趋势数据
+const fetchClassCreateTrend = async () => {
+  try {
+    const res = await getClassCreateTrend()
+    if (res.code === 200 && res.data) {
+      classCreateData.value = res.data
+      hasClassCreateData.value = res.data.length > 0
+      if (hasClassCreateData.value) {
+        nextTick(() => {
+          initClassCreateChart(res.data)
+        })
+      }
+    }
+  } catch (error) {
+    console.error('获取班级创建趋势失败:', error)
+  }
+}
+
+// 获取首页所有数据
+const fetchDashboardData = async () => {
+  await Promise.all([
+    fetchOverview(),
+    fetchUserGrowthTrend(),
+    fetchLevelDistribution(),
+    fetchClassChangeTrend(),
+    fetchDropClassTrend(),
+    fetchClassCreateTrend()
+  ])
 }
 
 // 图表数据标识
@@ -208,12 +308,16 @@ const goToUserManagement = () => {
 }
 
 // 初始化用户增长趋势图
-const initUserGrowthChart = () => {
+const initUserGrowthChart = (data) => {
   if (userGrowthChartInstance) {
     userGrowthChartInstance.dispose()
   }
   
   userGrowthChartInstance = echarts.init(userGrowthChart.value)
+  
+  const dates = data.map(item => item.date)
+  const studentData = data.map(item => item.newStudents)
+  const teacherData = data.map(item => item.newTeachers)
   
   const option = {
     tooltip: {
@@ -233,7 +337,7 @@ const initUserGrowthChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月']
+      data: dates
     },
     yAxis: {
       type: 'value',
@@ -243,7 +347,7 @@ const initUserGrowthChart = () => {
       {
         name: '学生',
         type: 'line',
-        data: [20, 35, 48, 65, 88, 120, 156],
+        data: studentData,
         smooth: true,
         itemStyle: {
           color: '#1890ff'
@@ -258,7 +362,7 @@ const initUserGrowthChart = () => {
       {
         name: '教师',
         type: 'line',
-        data: [2, 3, 5, 6, 8, 10, 12],
+        data: teacherData,
         smooth: true,
         itemStyle: {
           color: '#52c41a'
@@ -277,12 +381,25 @@ const initUserGrowthChart = () => {
 }
 
 // 初始化各等级班级分布饼图
-const initClassDistributionChart = () => {
+const initClassDistributionChart = (data) => {
   if (classDistributionChartInstance) {
     classDistributionChartInstance.dispose()
   }
   
   classDistributionChartInstance = echarts.init(classDistributionChart.value)
+  
+  const colorMap = {
+    'A级': '#ff4d4f',
+    'B级': '#ff7a45',
+    'C级': '#1890ff',
+    'D级': '#52c41a'
+  }
+  
+  const chartData = data.map(item => ({
+    value: item.classCount,
+    name: item.level,
+    itemStyle: { color: colorMap[item.level] || '#1890ff' }
+  }))
   
   const option = {
     tooltip: {
@@ -293,7 +410,7 @@ const initClassDistributionChart = () => {
       orient: 'horizontal',
       bottom: 0,
       left: 'center',
-      data: ['A级', 'B级', 'C级', 'D级']
+      data: data.map(item => item.level)
     },
     series: [
       {
@@ -318,28 +435,7 @@ const initClassDistributionChart = () => {
             fontWeight: 'bold'
           }
         },
-        data: [
-          { 
-            value: 2, 
-            name: 'A级',
-            itemStyle: { color: '#ff4d4f' }
-          },
-          { 
-            value: 2, 
-            name: 'B级',
-            itemStyle: { color: '#ff7a45' }
-          },
-          { 
-            value: 2, 
-            name: 'C级',
-            itemStyle: { color: '#1890ff' }
-          },
-          { 
-            value: 2, 
-            name: 'D级',
-            itemStyle: { color: '#52c41a' }
-          }
-        ]
+        data: chartData
       }
     ]
   }
@@ -348,7 +444,7 @@ const initClassDistributionChart = () => {
 }
 
 // 初始化换班变化图
-const initTransferChart = () => {
+const initTransferChart = (data) => {
   if (!hasTransferData.value) return
   
   if (transferChartInstance) {
@@ -357,6 +453,10 @@ const initTransferChart = () => {
   
   transferChartInstance = echarts.init(transferChart.value)
   
+  const dates = data.map(item => item.date)
+  const transferInData = data.map(item => item.transferIn)
+  const transferOutData = data.map(item => item.transferOut)
+  
   const option = {
     tooltip: {
       trigger: 'axis',
@@ -364,15 +464,20 @@ const initTransferChart = () => {
         type: 'shadow'
       }
     },
+    legend: {
+      data: ['转入', '转出'],
+      bottom: 0,
+      left: 'center'
+    },
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: '15%',
       containLabel: true
     },
     xAxis: {
       type: 'category',
-      data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月']
+      data: dates
     },
     yAxis: {
       type: 'value',
@@ -380,15 +485,23 @@ const initTransferChart = () => {
     },
     series: [
       {
-        name: '换班人数',
+        name: '转入',
         type: 'bar',
-        data: [5, 8, 12, 6, 10, 15, 9],
+        data: transferInData,
         itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#83bff6' },
-            { offset: 0.5, color: '#188df0' },
-            { offset: 1, color: '#188df0' }
-          ])
+          color: '#52c41a'
+        },
+        label: {
+          show: true,
+          position: 'top'
+        }
+      },
+      {
+        name: '转出',
+        type: 'bar',
+        data: transferOutData,
+        itemStyle: {
+          color: '#ff4d4f'
         },
         label: {
           show: true,
@@ -402,7 +515,7 @@ const initTransferChart = () => {
 }
 
 // 初始化退班变化图
-const initQuitChart = () => {
+const initQuitChart = (data) => {
   if (!hasQuitData.value) return
   
   if (quitChartInstance) {
@@ -410,6 +523,9 @@ const initQuitChart = () => {
   }
   
   quitChartInstance = echarts.init(quitChart.value)
+  
+  const dates = data.map(item => item.date)
+  const dropData = data.map(item => item.dropCount)
   
   const option = {
     tooltip: {
@@ -424,7 +540,7 @@ const initQuitChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月']
+      data: dates
     },
     yAxis: {
       type: 'value',
@@ -434,7 +550,7 @@ const initQuitChart = () => {
       {
         name: '退班人数',
         type: 'line',
-        data: [3, 5, 2, 8, 4, 6, 3],
+        data: dropData,
         smooth: true,
         itemStyle: {
           color: '#ff4d4f'
@@ -453,7 +569,7 @@ const initQuitChart = () => {
 }
 
 // 初始化班级创建图
-const initClassCreateChart = () => {
+const initClassCreateChart = (data) => {
   if (!hasClassCreateData.value) return
   
   if (classCreateChartInstance) {
@@ -461,6 +577,9 @@ const initClassCreateChart = () => {
   }
   
   classCreateChartInstance = echarts.init(classCreateChart.value)
+  
+  const dates = data.map(item => item.date)
+  const classCountData = data.map(item => item.classCount)
   
   const option = {
     tooltip: {
@@ -477,7 +596,7 @@ const initClassCreateChart = () => {
     },
     xAxis: {
       type: 'category',
-      data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月']
+      data: dates
     },
     yAxis: {
       type: 'value',
@@ -487,7 +606,7 @@ const initClassCreateChart = () => {
       {
         name: '创建班级数',
         type: 'bar',
-        data: [2, 3, 1, 4, 2, 3, 2],
+        data: classCountData,
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
             { offset: 0, color: '#95de64' },
@@ -517,16 +636,6 @@ const handleResize = () => {
 
 onMounted(async () => {
   await fetchDashboardData()
-  nextTick(() => {
-    initUserGrowthChart()
-    initClassDistributionChart()
-    initTransferChart()
-    initQuitChart()
-    initClassCreateChart()
-    
-    // 监听窗口大小变化
-    window.addEventListener('resize', handleResize)
-  })
 })
 
 // 组件卸载时清理

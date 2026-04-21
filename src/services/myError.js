@@ -53,7 +53,7 @@ export async function getWrongQuestionDetail(wrongId) {
  * @returns {Promise<void>}
  */
 export async function downloadWrongTemplate() {
-  const baseURL = import.meta.env.VITE_PROXY_DOMAIN_REAL || 'http://106.52.154.12:58080'
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
   const token = localStorage.getItem('token')
 
   // 构建下载链接
@@ -92,7 +92,7 @@ export async function downloadWrongTemplate() {
  * @returns {Promise<void>}
  */
 export async function exportWrongQuestions(wrongIds, format = 'xls') {
-  const baseURL = import.meta.env.VITE_PROXY_DOMAIN_REAL || 'http://106.52.154.12:58080'
+  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
   const token = localStorage.getItem('token')
 
   // 处理错题ID数组

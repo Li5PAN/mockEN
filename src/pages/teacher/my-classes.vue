@@ -354,7 +354,14 @@ import PlusOutlined from '@ant-design/icons-vue/PlusOutlined'
 import TeamOutlined from '@ant-design/icons-vue/TeamOutlined'
 import CarryOutOutlined from '@ant-design/icons-vue/CarryOutOutlined'
 import ClockCircleOutlined from '@ant-design/icons-vue/ClockCircleOutlined'
-import { getClassOverview, getClassList, createClass, publishTaskWithQuestions } from '@/services/teacher/tmyClass'
+// 使用 API 服务
+import {
+  getClassOverview,
+  getAllTeacherClassList,
+  createClass,
+  publishTaskWithQuestions,
+  mapApiClassToPage
+} from '@/services/teacher/ttmyclass'
 
 // 统计数据
 const statistics = reactive({
@@ -418,12 +425,23 @@ const createRules = {
   ]
 }
 
+// 等级排序映射
+const levelOrder = { A: 1, B: 2, C: 3, D: 4 }
+
 // 筛选后的班级列表
 const filteredClasses = computed(() => {
-  if (!filterLevel.value) {
-    return classList.value
+  let result = classList.value
+  if (filterLevel.value) {
+    result = result.filter(item => item.level === filterLevel.value)
   }
-  return classList.value.filter(item => item.level === filterLevel.value)
+  // 按等级 A -> B -> C -> D 排序
+  return [...result].sort((a, b) => {
+    const orderA = levelOrder[a.level] || 99
+    const orderB = levelOrder[b.level] || 99
+    if (orderA !== orderB) return orderA - orderB
+    // 同等级按创建时间倒序
+    return (b.createTime || '').localeCompare(a.createTime || '')
+  })
 })
 
 // 监听筛选等级变化，重新加载列表
@@ -449,28 +467,51 @@ const showCreateModal = () => {
   createModalVisible.value = true
 }
 
-// 处理创建班级
+// 处理创建班级（使用模拟数据）
 const handleCreateClass = async () => {
   try {
     await createFormRef.value.validate()
     createLoading.value = true
 
-    // 调用创建班级接口
-    const res = await createClass({
+    // 准备创建班级的数据
+    const createData = {
       classLevel: createForm.level,
       className: createForm.name,
       taskRequirement: createForm.taskCount,
       maxStudents: createForm.maxStudents
-    })
+    }
+
+    // 调用创建班级接口
+    const res = await createClass(createData)
 
     if (res.code === 200) {
       message.success('班级创建成功')
       createModalVisible.value = false
+
+      // 直接将新班级添加到列表前端（无需重新请求接口）
+      const newClass = {
+        id: res.data.classId,
+        name: res.data.className,
+        level: res.data.classLevel,
+        currentStudents: 0,
+        maxStudents: res.data.maxStudents,
+        taskCount: res.data.taskCount || 0,
+        createTime: formatDate(new Date()),
+        pendingCount: 0
+      }
+      classList.value.unshift(newClass)
+
+      // 更新统计数据
+      statistics.totalClasses++
+
       // 重置表单
       createFormRef.value.resetFields()
-      // 刷新列表（静默失败，不影响用户体验）
-      loadClassList()
-      loadStatistics()
+      Object.assign(createForm, {
+        level: undefined,
+        name: '',
+        taskCount: 60,
+        maxStudents: 30
+      })
     } else {
       message.error(res.msg || '创建失败')
     }
@@ -645,7 +686,7 @@ const handlePublishTask = async () => {
       }
     })
 
-    // 使用单一接口发布任务并添加题目
+    // 使用 API 发布任务并添加题目
     const res = await publishTaskWithQuestions({
       taskName: publishTaskForm.taskName,
       classId: selectedClass.value.id,
@@ -700,9 +741,9 @@ const handlePageChange = (page, pageSize) => {
 // 加载统计数据
 const loadStatistics = async () => {
   try {
+    // 获取概览数据
     const overviewRes = await getClassOverview()
     if (overviewRes.code === 200 && overviewRes.data) {
-      statistics.totalStudents = overviewRes.data.totalStudents || 0
       statistics.totalClasses = overviewRes.data.totalClasses || 0
       statistics.avgCompletionRate = overviewRes.data.avgCompletionRate || 0
       statistics.pendingReviews = overviewRes.data.pendingApplications || 0
@@ -712,28 +753,18 @@ const loadStatistics = async () => {
   }
 }
 
-// 加载班级列表
+// 加载班级列表（展示所有老师的班级）
 const loadClassList = async () => {
   try {
-    const listRes = await getClassList({
+    const listRes = await getAllTeacherClassList({
       classLevel: filterLevel.value || undefined,
-      pageNum: 1, // 每次都从第一页开始
-      pageSize: 100 // 一次获取100条
+      pageNum: 1,
+      pageSize: 100
     })
     // 根据后端返回格式，数据直接在根层级
     if (listRes.code === 200 && listRes.rows) {
-      // 映射接口字段到页面字段
-      classList.value = listRes.rows.map(item => ({
-        id: item.classId,
-        name: item.className,
-        level: item.classLevel,
-        currentStudents: item.currentStudents,
-        maxStudents: item.maxStudents,
-        taskCount: item.taskCount,
-        createTime: formatDate(item.createTime),
-        pendingCount: item.pendingApplicationCount,
-        auditStatus: item.auditStatus // 0-待审核 1-已通过 2-已拒绝
-      }))
+      // 使用映射函数转换接口字段到页面字段
+      classList.value = listRes.rows.map(item => mapApiClassToPage(item))
       pagination.total = listRes.total || 0
     }
   } catch (error) {

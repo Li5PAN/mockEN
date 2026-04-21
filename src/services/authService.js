@@ -12,7 +12,7 @@ import request from '@/utils/request'
  */
 async function login(params) {
   const res = await request({
-    url: '/login',
+    url: '/auth/login',
     method: 'post',
     data: {
       username: params.username,
@@ -21,8 +21,11 @@ async function login(params) {
   })
 
   // 登录成功后存储 token
-  if (res && res.token) {
-    localStorage.setItem('token', res.token)
+  // 响应拦截器返回的是 response.data，所以 res 是 response.data
+  // 后端返回格式: { code: 200, data: { token: "...", userInfo: {...} } }
+  const token = res.data?.token || res.token
+  if (token) {
+    localStorage.setItem('token', token)
   }
 
   return res

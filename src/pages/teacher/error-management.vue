@@ -135,7 +135,7 @@
               <a-button type="link" size="small" @click="viewErrorDetail(record)">
                 查看详情
               </a-button>
-              <a-button type="link" size="small" @click="deleteError(record)">
+              <a-button type="link" size="small" @click="deleteErrorItem(record)">
                 删除
               </a-button>
             </a-space>
@@ -161,25 +161,29 @@
         
         <div style="margin: 12px 0;">
           <a 
-            :href="templateUrl" 
-            download
+            @click.prevent="handleDownloadTemplate"
             style="color: #1890ff; cursor: pointer; text-decoration: none;"
           >
             点击下载错题模板
           </a>
         </div>
         
-        <a-upload
+        <a-upload-dragger
           v-model:file-list="fileList"
-          :before-upload="beforeUpload"
           accept=".xlsx,.xls"
           :max-count="1"
+          :before-upload="beforeUpload"
+          :show-upload-list="true"
+          name="file"
         >
-          <a-button>
-            <template #icon><UploadOutlined /></template>
-            选择文件
-          </a-button>
-        </a-upload>
+          <p class="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+          <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
+          <p class="ant-upload-hint">
+            仅支持 Excel 格式文件（.xlsx, .xls）
+          </p>
+        </a-upload-dragger>
 
         <a-divider />
 
@@ -266,7 +270,15 @@ import DeleteOutlined from '@ant-design/icons-vue/DeleteOutlined'
 import DownOutlined from '@ant-design/icons-vue/DownOutlined'
 import SearchOutlined from '@ant-design/icons-vue/SearchOutlined'
 import ReloadOutlined from '@ant-design/icons-vue/ReloadOutlined'
-import { getQuestionList, getQuestionDetail, getQuestionTemplateUrl, importQuestion, exportQuestion, batchDeleteQuestions } from '@/services/teacher/tmyError'
+import InboxOutlined from '@ant-design/icons-vue/InboxOutlined'
+import {
+  getErrorList,
+  getErrorDetail,
+  importError,
+  exportError,
+  batchDeleteErrors,
+  downloadErrorTemplate
+} from '@/services/teacher/ttmyerror'
 import { Modal } from 'ant-design-vue'
 
 // 筛选条件
@@ -285,9 +297,7 @@ const selectedRows = ref([])
 // 导入弹窗
 const importModalVisible = ref(false)
 const fileList = ref([])
-
-// 模板下载地址
-const templateUrl = getQuestionTemplateUrl()
+const uploadFile = ref(null) // 存储原始文件对象
 
 // 详情弹窗
 const detailModalVisible = ref(false)
@@ -427,14 +437,49 @@ const showImportModal = () => {
   importModalVisible.value = true
 }
 
+// 下载错题模板
+const handleDownloadTemplate = async () => {
+  try {
+    message.loading({ content: '正在下载模板...', key: 'downloadTemplate' })
+    const response = await downloadErrorTemplate()
+    const blob = response.data
+    const url = window.URL.createObjectURL(new Blob([blob]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', '错题导入模板.xlsx')
+    document.body.appendChild(link)
+    link.click()
+    link.parentNode.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success({ content: '模板下载成功', key: 'downloadTemplate' })
+  } catch (error) {
+    console.error('模板下载失败:', error)
+    message.error({ content: '模板下载失败', key: 'downloadTemplate' })
+  }
+}
+
 // 文件上传前验证
 const beforeUpload = (file) => {
   const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
                   file.type === 'application/vnd.ms-excel'
   if (!isExcel) {
     message.error('只能上传 Excel 文件！')
+    return false
   }
-  return false // 阻止自动上传
+  
+  // 保存文件对象
+  uploadFile.value = file
+  fileList.value = [file]
+  
+  // 返回 false 阻止自动上传
+  return false
+}
+
+// 删除文件
+const handleRemove = () => {
+  fileList.value = []
+  uploadFile.value = null
+  return true
 }
 
 // 处理导入
@@ -443,15 +488,26 @@ const handleImport = async () => {
     message.warning('请选择要导入的文件')
     return
   }
+  
+  // 使用单独存储的文件对象
+  const fileObj = uploadFile.value
+  
+  if (!fileObj) {
+    message.error('文件格式错误，请重新选择')
+    return
+  }
+  
   const formData = new FormData()
-  formData.append('file', fileList.value[0].originFileObj)
+  formData.append('file', fileObj)
+  
   try {
     loading.value = true
-    await importQuestion(formData)
+    await importError(formData)
     message.success('错题导入成功！')
     importModalVisible.value = false
     fileList.value = []
-    
+    uploadFile.value = null
+
     // 重新加载数据
     loadData()
   } catch (error) {
@@ -465,6 +521,7 @@ const handleImport = async () => {
 // 取消导入
 const handleCancelImport = () => {
   fileList.value = []
+  uploadFile.value = null
 }
 
 // 处理导出
@@ -472,35 +529,51 @@ const handleExport = async ({ key }) => {
   // 判断是否为全部导出还是筛选导出
   const isAll = key === 'excel-all' || key === 'pdf-all'
   const exportType = key.includes('excel') ? 'excel' : 'pdf'
-  
+
   // 显示加载提示
   message.loading({ content: '正在导出...', key: 'export' })
   try {
-    // 获取任务ID - 使用第一个任务的ID（如果列表有数据）
-    const taskId = errorList.value.length > 0 ? errorList.value[0].taskId : null
-    if (!taskId) {
-      message.warning({ content: '暂无数据可导出', key: 'export' })
-      return
+    // 构建导出参数
+    const params = {
+      format: exportType,
+      scope: isAll ? 'all' : 'filtered'
     }
+
+    // 如果是筛选导出，添加筛选条件
+    if (!isAll) {
+      params.questionIds = selectedRowKeys.value.join(',')
+      if (filterDateRange.value && filterDateRange.value.length === 2) {
+        params.startDate = filterDateRange.value[0].format('YYYY-MM-DD')
+        params.endDate = filterDateRange.value[1].format('YYYY-MM-DD')
+      }
+      if (filterQuestionType.value) {
+        params.questionType = filterQuestionType.value
+      }
+      if (filterClassLevel.value) {
+        params.classLevel = filterClassLevel.value
+      }
+    }
+
     // 调用导出接口
-    const blob = await exportQuestion(taskId)
+    const response = await exportError(params)
+    const blob = response.data
     // 创建下载链接
     const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
     // 生成文件名
-    const fileName = isAll 
-      ? `错题全部导出_${new Date().getTime()}.${exportType === 'excel' ? 'xlsx' : 'pdf'}`
-      : `错题筛选导出_${new Date().getTime()}.${exportType === 'excel' ? 'xlsx' : 'pdf'}`
-    
+    const fileName = isAll
+      ? `错题全部导出_${new Date().getTime()}.${exportType}`
+      : `错题筛选导出_${new Date().getTime()}.${exportType}`
+
     link.setAttribute('download', fileName)
     document.body.appendChild(link)
     link.click()
-    
+
     // 清理
     link.parentNode.removeChild(link) // 删除链接节点
     window.URL.revokeObjectURL(url) // 释放URL对象
-    
+
     message.success({ content: '导出成功', key: 'export' })
   } catch (error) {
     console.error('导出失败:', error)
@@ -531,8 +604,8 @@ const showBatchDeleteConfirm = () => {
 const handleBatchDelete = async () => {
   try {
     loading.value = true
-    const res = await batchDeleteQuestions(selectedRowKeys.value)
-    
+    const res = await batchDeleteErrors(selectedRowKeys.value)
+
     if (res.code === 200) {
       message.success(res.msg || `成功删除 ${selectedRowKeys.value.length} 道题目`)
       // 清空选择
@@ -555,7 +628,7 @@ const handleBatchDelete = async () => {
 const viewErrorDetail = async (record) => {
   loading.value = true
   try {
-    const res = await getQuestionDetail(record.questionId)
+    const res = await getErrorDetail(record.questionId)
     if (res.code === 200) {
       selectedError.value = res.data
       detailModalVisible.value = true
@@ -571,7 +644,7 @@ const viewErrorDetail = async (record) => {
 }
 
 // 删除错题（单个）
-const deleteError = (record) => {
+const deleteErrorItem = (record) => {
   Modal.confirm({
     title: '确认删除',
     content: `确定要删除这道错题吗？此操作不可恢复。`,
@@ -581,8 +654,8 @@ const deleteError = (record) => {
     async onOk() {
       try {
         loading.value = true
-        const res = await batchDeleteQuestions([record.questionId])
-        
+        const res = await batchDeleteErrors([record.questionId])
+
         if (res.code === 200) {
           message.success(res.msg || '删除成功')
           // 从列表中移除
@@ -608,25 +681,25 @@ const loadData = async () => {
   try {
     // 构建查询参数
     const params = {}
-    
+
     // 时间范围
     if (filterDateRange.value && filterDateRange.value.length === 2) {
       const [start, end] = filterDateRange.value
-      params.beginDate = start.format('YYYY-MM-DD')
+      params.startDate = start.format('YYYY-MM-DD')
       params.endDate = end.format('YYYY-MM-DD')
     }
-    
+
     // 题目类型
     if (filterQuestionType.value) {
       params.questionType = filterQuestionType.value
     }
-    
+
     // 班级等级
     if (filterClassLevel.value) {
       params.classLevel = filterClassLevel.value
     }
-    
-    const res = await getQuestionList(params)
+
+    const res = await getErrorList(params)
     if (res.code === 200) {
       errorList.value = res.rows || []
     } else {

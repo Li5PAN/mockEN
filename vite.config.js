@@ -17,9 +17,8 @@ export default defineConfig(({ mode }) => {
       port: Number(env.VITE_PORT) || 3000,
       proxy: {
         '/api': {
-          target: env.VITE_PROXY_DOMAIN_REAL,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '')
+          target: env.VITE_PROXY_DOMAIN_REAL || 'http://localhost:3001',
+          changeOrigin: true
         }
       }
     }

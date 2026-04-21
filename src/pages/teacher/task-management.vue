@@ -164,7 +164,8 @@ import FileTextOutlined from '@ant-design/icons-vue/FileTextOutlined'
 import ClockCircleOutlined from '@ant-design/icons-vue/ClockCircleOutlined'
 import CheckCircleOutlined from '@ant-design/icons-vue/CheckCircleOutlined'
 import ApartmentOutlined from '@ant-design/icons-vue/ApartmentOutlined'
-import { getTaskList, getTaskDetail, sendTaskReminder } from '@/services/teacher/tmyTask'
+// 使用真实接口
+import { getTaskList, getTaskDetail, sendTaskReminder } from '@/services/teacher/ttaskmanagement'
 
 // 筛选条件
 const filterLevel = ref('')
@@ -214,7 +215,7 @@ const getQuestionTypeLabel = (type) => {
   return typeMap[type] || '未知题型'
 }
 
-// 显示任务详情
+// 显示任务详情（使用真实接口）
 const showTaskDetail = async (task) => {
   try {
     const res = await getTaskDetail(task.id)
@@ -224,48 +225,36 @@ const showTaskDetail = async (task) => {
 
       // 将 API 返回的数据映射到组件需要的格式
       selectedTask.value = {
-        id: detail.taskId,
+        id: detail.id,
         taskName: detail.taskName,
         classId: detail.classId,
         className: detail.className,
         classLevel: detail.classLevel,
         questionCount: detail.questionCount,
         startTime: detail.startTime,
-        deadline: detail.endTime,
+        deadline: detail.deadline,
         completedCount: detail.completedCount,
         totalStudents: detail.totalStudents,
         taskStatus: detail.taskStatus,
-        createTime: detail.publishTime,
+        createTime: detail.createTime,
         questions: (detail.questions || []).map(q => {
-          // 将题型数字转换为字符串
+          // 将题型转换为字符串
           const typeMap = {
-            '1': 'choice',
-            '2': 'fillBlank',
-            '3': 'spelling'
+            'choice': 'choice',
+            'fill-blank': 'fillBlank',
+            'spell': 'spelling'
           }
           // 解析选项 JSON 字符串
           let options = null
           let correctIndexes = null
-          let answer = q.correctAnswer
-          if (q.options) {
-            try {
-              const parsedOptions = JSON.parse(q.options)
-              // 转换为数组格式
-              options = Object.values(parsedOptions)
-              // 找到正确答案的索引（支持单选和多选）
-              const optionKeys = Object.keys(parsedOptions)
-              // 将 correctAnswer 分割为数组（如 "A,B" -> ["A", "B"]）
-              const answerArray = q.correctAnswer.split(',').map(a => a.trim())
-              correctIndexes = answerArray
-                .map(ans => optionKeys.indexOf(ans))
-                .filter(idx => idx !== -1)
-            } catch (e) {
-              // 解析失败，options 保持为空
-            }
+          let answer = q.answer
+          if (q.options && Array.isArray(q.options)) {
+            options = q.options
+            correctIndexes = q.correctIndexes || []
           }
           return {
-            type: typeMap[q.questionType] || 'choice',
-            content: q.questionContent,
+            type: typeMap[q.type] || q.type || 'choice',
+            content: q.content,
             options: options,
             correctIndexes: correctIndexes,
             answer: answer
@@ -283,7 +272,7 @@ const showTaskDetail = async (task) => {
   }
 }
 
-// 督促完成
+// 督促完成（使用真实接口）
 const remindStudents = async (task) => {
   const uncompletedCount = task.totalStudents - task.completedCount
   if (uncompletedCount === 0) {
@@ -292,13 +281,10 @@ const remindStudents = async (task) => {
   }
 
   try {
-    const res = await sendTaskReminder({
-      taskId: task.id,
-      reminderType: 0
-    })
+    const res = await sendTaskReminder(task.id)
 
     if (res.code === 200) {
-      message.success(`已向 ${uncompletedCount} 名未完成学生发送督促提示`)
+      message.success(res.msg || `已向 ${uncompletedCount} 名未完成学生发送督促提示`)
     } else {
       message.error(res.msg || '发送督促失败')
     }
@@ -308,7 +294,7 @@ const remindStudents = async (task) => {
   }
 }
 
-// 加载任务列表数据
+// 加载任务列表数据（使用真实接口）
 const loadData = async () => {
   try {
     const params = {
@@ -322,18 +308,19 @@ const loadData = async () => {
     if (res.code === 200) {
       // 将 API 返回的数据映射到组件需要的字段格式
       taskList.value = res.rows.map(item => ({
-        id: item.taskId,
+        id: item.id,
         taskName: item.taskName,
         classId: item.classId,
         className: item.className,
         classLevel: item.classLevel,
         questionCount: item.questionCount,
         startTime: item.startTime,
-        deadline: item.endTime, // API 返回 endTime，组件使用 deadline
+        deadline: item.deadline,
         completedCount: item.completedCount,
         totalStudents: item.totalStudents,
         taskStatus: item.taskStatus,
-        questions: [] // 详情题目列表在查看详情时再请求
+        createTime: item.createTime,
+        questions: []
       }))
     } else {
       message.error(res.msg || '加载任务列表失败')

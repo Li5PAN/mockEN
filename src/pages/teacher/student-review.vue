@@ -99,8 +99,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { getApplicationList } from '@/services/teacher/myStudent'
-import { auditApplication } from '@/services/teacher/tmyClass'
+// 使用模拟数据
+import {
+  mockGetApplicationList,
+  mockAuditApplication
+} from '@/pages/mockjson/teacher'
 
 // 当前激活的标签页
 const activeTab = ref('join')
@@ -256,7 +259,7 @@ const getLevelColor = (level) => {
   return colorMap[level] || 'default'
 }
 
-// 处理通过申请
+// 处理通过申请（使用模拟数据）
 const handleApprove = async (record, type) => {
   const typeMap = {
     join: '入班',
@@ -265,16 +268,16 @@ const handleApprove = async (record, type) => {
   }
 
   try {
-    const res = await auditApplication(record.id, '1')
+    const res = await mockAuditApplication(record.applicationId, '1')
     if (res.code === 200) {
       message.success(`已通过 ${record.userName} 的${typeMap[type]}申请`)
       // 从列表中移除该申请
       if (type === 'join') {
-        joinApplications.value = joinApplications.value.filter(item => item.id !== record.id)
+        joinApplications.value = joinApplications.value.filter(item => item.applicationId !== record.applicationId)
       } else if (type === 'transfer') {
-        transferApplications.value = transferApplications.value.filter(item => item.id !== record.id)
+        transferApplications.value = transferApplications.value.filter(item => item.applicationId !== record.applicationId)
       } else if (type === 'quit') {
-        quitApplications.value = quitApplications.value.filter(item => item.id !== record.id)
+        quitApplications.value = quitApplications.value.filter(item => item.applicationId !== record.applicationId)
       }
     } else {
       message.error(res.msg || '操作失败')
@@ -285,7 +288,7 @@ const handleApprove = async (record, type) => {
   }
 }
 
-// 处理拒绝申请
+// 处理拒绝申请（使用模拟数据）
 const handleReject = async (record, type) => {
   const typeMap = {
     join: '入班',
@@ -294,16 +297,16 @@ const handleReject = async (record, type) => {
   }
 
   try {
-    const res = await auditApplication(record.id, '2')
+    const res = await mockAuditApplication(record.applicationId, '2')
     if (res.code === 200) {
       message.success(`已拒绝 ${record.userName} 的${typeMap[type]}申请`)
       // 从列表中移除该申请
       if (type === 'join') {
-        joinApplications.value = joinApplications.value.filter(item => item.id !== record.id)
+        joinApplications.value = joinApplications.value.filter(item => item.applicationId !== record.applicationId)
       } else if (type === 'transfer') {
-        transferApplications.value = transferApplications.value.filter(item => item.id !== record.id)
+        transferApplications.value = transferApplications.value.filter(item => item.applicationId !== record.applicationId)
       } else if (type === 'quit') {
-        quitApplications.value = quitApplications.value.filter(item => item.id !== record.id)
+        quitApplications.value = quitApplications.value.filter(item => item.applicationId !== record.applicationId)
       }
     } else {
       message.error(res.msg || '操作失败')
@@ -314,15 +317,15 @@ const handleReject = async (record, type) => {
   }
 }
 
-// 加载申请数据
+// 加载申请数据（使用模拟数据）
 const loadData = async () => {
   loading.value = true
   try {
     // 加载入班申请数据 (applicationType: 1)
-    const joinRes = await getApplicationList({ 
+    const joinRes = await mockGetApplicationList({
       applicationType: 1,
       pageNum: 1,
-      pageSize: 10 
+      pageSize: 10
     })
     if (joinRes.code === 200) {
       // 后端分页数据在 data.rows 中
@@ -333,10 +336,10 @@ const loadData = async () => {
     }
 
     // 加载换班申请数据 (applicationType: 2)
-    const transferRes = await getApplicationList({ 
+    const transferRes = await mockGetApplicationList({
       applicationType: 2,
       pageNum: 1,
-      pageSize: 10 
+      pageSize: 10
     })
     if (transferRes.code === 200) {
       transferApplications.value = (transferRes.data?.rows || transferRes.rows || []).map(item => ({
@@ -346,10 +349,10 @@ const loadData = async () => {
     }
 
     // 加载退班申请数据 (applicationType: 3)
-    const quitRes = await getApplicationList({ 
+    const quitRes = await mockGetApplicationList({
       applicationType: 3,
       pageNum: 1,
-      pageSize: 10 
+      pageSize: 10
     })
     if (quitRes.code === 200) {
       quitApplications.value = (quitRes.data?.rows || quitRes.rows || []).map(item => ({

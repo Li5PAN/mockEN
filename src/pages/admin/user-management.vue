@@ -96,7 +96,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import { getUserList, getUserDetail, deleteUser } from '@/services/admin/person'
+import { getUserList, getUserDetail, deleteUser } from '@/services/admin/aperson'
 
 // 身份筛选
 const roleFilter = ref('')

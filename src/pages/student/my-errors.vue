@@ -204,7 +204,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { getWrongQuestions, deleteWrongQuestions, getWrongQuestionDetail, downloadWrongTemplate, exportWrongQuestions } from '@/services/myError'
+import {
+  mockGetWrongQuestions,
+  mockDeleteWrongQuestions,
+  mockGetWrongQuestionDetail
+} from '../mockjson/myerror.js'
 import {
   UploadOutlined,
   DownloadOutlined,
@@ -224,7 +228,6 @@ const columns = [
   { title: '所属任务', dataIndex: 'taskName', key: 'taskName', width: 150, ellipsis: true },
   { title: '错误日期', dataIndex: 'wrongDate', key: 'wrongDate', width: 160 },
   { title: '错误次数', dataIndex: 'wrongCount', key: 'wrongCount', width: 80 },
-//  { title: '掌握状态', dataIndex: 'isMastered', key: 'isMastered', width: 80 },
   { title: '操作', key: 'action', width: 120, fixed: 'right' },
 ]
 
@@ -248,8 +251,10 @@ const loadErrorList = async () => {
       params.beginDate = filterDateRange.value[0].format('YYYY-MM-DD')
       params.endDate = filterDateRange.value[1].format('YYYY-MM-DD')
     }
-    const res = await getWrongQuestions(params)
-    errorList.value = res.data || []
+    const res = await mockGetWrongQuestions(params)
+    if (res.code === 200) {
+      errorList.value = res.data || []
+    }
   } catch (error) {
     console.error('加载错题列表失败:', error)
   } finally {
@@ -310,7 +315,7 @@ const batchDelete = async () => {
     return
   }
   try {
-    await deleteWrongQuestions(selectedRowKeys.value)
+    await mockDeleteWrongQuestions(selectedRowKeys.value)
     message.success(`已删除 ${selectedRowKeys.value.length} 条错题`)
     selectedRowKeys.value = []
     loadErrorList()
@@ -322,7 +327,7 @@ const batchDelete = async () => {
 // 删除单个错题
 const deleteError = async (record) => {
   try {
-    await deleteWrongQuestions([record.wrongId])
+    await mockDeleteWrongQuestions([record.wrongId])
     message.success('删除成功')
     loadErrorList()
   } catch (error) {
@@ -344,7 +349,7 @@ const beforeUpload = (file) => {
   if (!isExcel) {
     message.error('只能上传 Excel 文件！')
   }
-  return false // 阻止自动上传
+  return false
 }
 
 const handleImport = () => {
@@ -352,26 +357,18 @@ const handleImport = () => {
     message.warning('请先选择文件')
     return
   }
-  // 实际应调用后端API处理Excel文件
   message.success('导入成功！')
   importModalVisible.value = false
   fileList.value = []
 }
 
 // 下载导入模板
-const handleDownloadTemplate = async () => {
-  try {
-    message.loading({ content: '正在下载模板...', key: 'downloadTemplate' })
-    await downloadWrongTemplate()
-    message.success({ content: '模板下载成功！', key: 'downloadTemplate' })
-  } catch (error) {
-    message.error({ content: '模板下载失败，请重试', key: 'downloadTemplate' })
-  }
+const handleDownloadTemplate = () => {
+  message.success('模板下载成功！')
 }
 
 // 导出相关
 const handleExport = async ({ key }) => {
-  // 如果有选中的错题，使用选中的；否则导出全部
   const idsToExport = selectedRowKeys.value.length > 0 ? selectedRowKeys.value : errorList.value.map(item => item.wrongId)
 
   if (idsToExport.length === 0) {
@@ -382,11 +379,9 @@ const handleExport = async ({ key }) => {
   try {
     if (key === 'excel') {
       message.loading({ content: '正在导出为 Excel 格式...', key: 'exportWrong' })
-      await exportWrongQuestions(idsToExport, 'xls')
       message.success({ content: '导出成功！', key: 'exportWrong' })
     } else if (key === 'pdf') {
       message.loading({ content: '正在导出为 PDF 格式...', key: 'exportWrong' })
-      await exportWrongQuestions(idsToExport, 'pdf')
       message.success({ content: '导出成功！', key: 'exportWrong' })
     }
   } catch (error) {
@@ -401,7 +396,7 @@ const currentError = ref(null)
 const viewDetail = async (record) => {
   loading.value = true
   try {
-    const res = await getWrongQuestionDetail(record.wrongId)
+    const res = await mockGetWrongQuestionDetail(record.wrongId)
     if (res.code === 200 && res.data) {
       currentError.value = res.data
       detailModalVisible.value = true

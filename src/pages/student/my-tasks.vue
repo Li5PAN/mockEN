@@ -283,7 +283,12 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import myTaskService from '@/services/myTask'
+import {
+  mockGetMyTasks,
+  mockGetTaskQuestions,
+  mockGetTaskDetail,
+  mockSubmitTaskAnswers
+} from '../mockjson/mytask.js'
 
 // 任务状态：pending-未完成，completed-已完成
 const taskStatus = ref('pending')
@@ -325,9 +330,8 @@ const completedTasks = ref([])
 const fetchTasks = async () => {
   loading.value = true
   try {
-    // 根据任务状态调用不同的接口参数
     const completed = taskStatus.value === 'completed' ? 'true' : 'false'
-    const res = await myTaskService.getMyTasks({ completed })
+    const res = await mockGetMyTasks(completed)
     
     if (res && res.code === 200) {
       const data = res.data || []
@@ -352,7 +356,7 @@ onMounted(() => {
   fetchTasks()
 })
 
-// 监听任务状态切换，重新获取数据
+// 监听任务状态切换
 watch(taskStatus, () => {
   fetchTasks()
 })
@@ -360,9 +364,9 @@ watch(taskStatus, () => {
 // 任务状态颜色
 const getTaskStatusColor = (status) => {
   const colors = {
-    '0': 'default',    // 未开始 - 灰色
-    '1': 'processing', // 进行中 - 蓝色
-    '2': 'success',    // 已完成 - 绿色
+    '0': 'default',
+    '1': 'processing',
+    '2': 'success',
   }
   return colors[status] || 'default'
 }
@@ -410,9 +414,9 @@ const getTaskTypeText = (type) => {
 
 // 题目类型映射
 const questionTypeMap = {
-  '1': 'single',   // 单选题
-  '2': 'multiple', // 多选题
-  '3': 'input',    // 填空题
+  '1': 'single',
+  '2': 'multiple',
+  '3': 'input',
 }
 
 // 做题弹窗相关
@@ -450,24 +454,18 @@ const startTask = async (task) => {
   doTaskModalVisible.value = true
   
   try {
-    const res = await myTaskService.getTaskQuestions(task.taskId)
+    const res = await mockGetTaskQuestions(task.taskId)
     
     if (res && res.code === 200 && res.data) {
       const taskData = res.data
-      // 更新任务信息
       currentTask.value = {
         ...task,
         ...taskData,
         taskTypeText: getTaskTypeText(taskData.taskType),
         taskStatusText: taskData.taskStatusText,
       }
-      // 处理题目数据
       currentQuestions.value = (taskData.questions || []).map(q => {
-        // 调试：打印原始类型
-        console.log('题目ID:', q.questionId, '原始questionType:', q.questionType, '映射后type:', questionTypeMap[q.questionType])
-        
         let options = []
-        // 解析 options 字段（可能是 JSON 字符串）
         if (q.options) {
           try {
             const parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
@@ -481,13 +479,12 @@ const startTask = async (task) => {
           questionId: q.questionId,
           questionName: q.questionName,
           questionContent: q.questionContent,
-          questionType: q.questionType, // 保留原始类型便于调试
+          questionType: q.questionType,
           type: questionTypeMap[q.questionType] || 'single',
           options: options,
           userAnswer: null,
         }
       })
-      // 开始计时
       startTimer()
     } else {
       message.error(res?.msg || '获取题目失败')
@@ -502,37 +499,6 @@ const startTask = async (task) => {
   }
 }
 
-// 生成模拟题目
-const generateQuestions = (count) => {
-  const questions = []
-  for (let i = 0; i < count; i++) {
-    if (i % 2 === 0) {
-      // 单选题
-      questions.push({
-        type: 'single',
-        question: `单词 "example${i + 1}" 的中文意思是？`,
-        options: [
-          { key: 'A', value: '例子' },
-          { key: 'B', value: '样本' },
-          { key: 'C', value: '示范' },
-          { key: 'D', value: '模板' },
-        ],
-        correctAnswer: 'A',
-        userAnswer: null,
-      })
-    } else {
-      // 填空题
-      questions.push({
-        type: 'input',
-        question: `请翻译单词 "word${i + 1}"`,
-        correctAnswer: '单词',
-        userAnswer: '',
-      })
-    }
-  }
-  return questions
-}
-
 // 关闭做题弹窗
 const closeTaskModal = () => {
   stopTimer()
@@ -543,24 +509,21 @@ const closeTaskModal = () => {
 
 // 提交任务
 const submitTask = async () => {
-  // 检查是否所有题目都已作答
   const unanswered = currentQuestions.value.some(q => !q.userAnswer)
   if (unanswered) {
     message.warning('请完成所有题目后再提交')
     return
   }
 
-  // 停止计时
   stopTimer()
 
-  // 构建提交参数
   const answers = currentQuestions.value.map(q => ({
     questionId: q.questionId,
     answer: Array.isArray(q.userAnswer) ? q.userAnswer.join(',') : q.userAnswer,
   }))
 
   try {
-    const res = await myTaskService.submitTaskAnswers({
+    const res = await mockSubmitTaskAnswers({
       taskId: currentTask.value.taskId,
       answers: answers,
       timeUsed: timeUsed.value,
@@ -568,10 +531,8 @@ const submitTask = async () => {
 
     if (res && res.code === 200 && res.data) {
       const result = res.data
-      // 显示结果
       message.success(`提交成功！（答对${result.correctCount}题，答错${result.wrongCount}题）`)
       
-      // 刷新任务列表
       await fetchTasks()
       closeTaskModal()
     } else {
@@ -595,21 +556,18 @@ const viewDetail = async (task) => {
   detailModalVisible.value = true
   
   try {
-    const res = await myTaskService.getTaskDetail(task.taskId)
+    const res = await mockGetTaskDetail(task.taskId)
     
     if (res && res.code === 200 && res.data) {
       const taskData = res.data
-      // 更新任务信息
       currentTask.value = {
         ...task,
         ...taskData,
         taskTypeText: getTaskTypeText(taskData.taskType),
         taskStatusText: taskData.taskStatusText,
       }
-      // 处理题目数据
       currentTaskDetail.value = (taskData.questions || []).map(q => {
         let options = []
-        // 解析 options 字段（可能是 JSON 字符串）
         if (q.options) {
           try {
             const parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
@@ -645,23 +603,19 @@ const viewDetail = async (task) => {
 // 答案判断辅助函数
 const isCorrectOption = (question, optionKey) => {
   if (!question.correctAnswer) return false
-  // 多选题：correctAnswer 可能是 "A,B" 格式
   if (question.type === 'multiple') {
     const correctOptions = question.correctAnswer.split(',').map(s => s.trim())
     return correctOptions.includes(optionKey)
   }
-  // 单选题：直接比较
   return question.correctAnswer === optionKey
 }
 
 const isUserOption = (question, optionKey) => {
   if (!question.userAnswer) return false
-  // 多选题：userAnswer 可能是 "A,B" 格式
   if (question.type === 'multiple') {
     const userOptions = question.userAnswer.split(',').map(s => s.trim())
     return userOptions.includes(optionKey)
   }
-  // 单选题：直接比较
   return question.userAnswer === optionKey
 }
 

@@ -100,7 +100,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import SearchOutlined from '@ant-design/icons-vue/SearchOutlined'
-import { getAuditList, getManageList, auditClass, deleteClass } from '@/services/admin/aclass'
+import { getAuditList, getManageList, approveClass, rejectClass, deleteClass } from '@/services/admin/aaclass'
 
 // 当前激活的标签页
 const activeTab = ref('review')
@@ -147,8 +147,8 @@ const reviewColumns = [
   },
   {
     title: '创建者',
-    dataIndex: 'creatorName',
-    key: 'creatorName',
+    dataIndex: 'teacherName',
+    key: 'teacherName',
     width: 120
   },
   {
@@ -193,8 +193,8 @@ const managementColumns = [
   },
   {
     title: '创建者',
-    dataIndex: 'creatorName',
-    key: 'creatorName',
+    dataIndex: 'teacherName',
+    key: 'teacherName',
     width: 120
   },
   {
@@ -211,8 +211,8 @@ const managementColumns = [
   },
   {
     title: '进行中任务',
-    dataIndex: 'ongoingTasks',
-    key: 'ongoingTasks',
+    dataIndex: 'taskCount',
+    key: 'taskCount',
     width: 100
   },
   {
@@ -228,8 +228,8 @@ const filteredReviewList = computed(() => {
   if (!teacherSearch.value) {
     return reviewList.value
   }
-  return reviewList.value.filter(item => 
-    item.creatorName.toLowerCase().includes(teacherSearch.value.toLowerCase())
+  return reviewList.value.filter(item =>
+    item.teacherName.toLowerCase().includes(teacherSearch.value.toLowerCase())
   )
 })
 
@@ -238,8 +238,8 @@ const filteredManagementList = computed(() => {
   if (!teacherSearch.value) {
     return managementList.value
   }
-  return managementList.value.filter(item => 
-    item.creatorName.toLowerCase().includes(teacherSearch.value.toLowerCase())
+  return managementList.value.filter(item =>
+    item.teacherName.toLowerCase().includes(teacherSearch.value.toLowerCase())
   )
 })
 
@@ -256,7 +256,7 @@ const getLevelColor = (level) => {
 
 // 处理搜索
 const handleSearch = () => {
-  // 搜索逻辑已通过 computed 实现
+  loadData()
 }
 
 // 处理通过审核
@@ -268,7 +268,7 @@ const handleApprove = async (record) => {
     cancelText: '取消',
     async onOk() {
       try {
-        await auditClass(record.classId, true)
+        await approveClass(record.classId)
         reviewList.value = reviewList.value.filter(item => item.classId !== record.classId)
         message.success('审核通过')
       } catch (error) {
@@ -287,7 +287,7 @@ const handleReject = async (record) => {
     cancelText: '取消',
     async onOk() {
       try {
-        await auditClass(record.classId, false)
+        await rejectClass(record.classId)
         reviewList.value = reviewList.value.filter(item => item.classId !== record.classId)
         message.warning('已拒绝该申请')
       } catch (error) {
@@ -319,7 +319,8 @@ const handleDelete = (record) => {
 // 加载数据
 const loadData = async () => {
   try {
-    const response = await getAuditList()
+    const params = teacherSearch.value ? { teacherName: teacherSearch.value } : {}
+    const response = await getAuditList(params)
     if (response.code === 200) {
       reviewList.value = response.rows || []
     }
@@ -333,7 +334,8 @@ const loadData = async () => {
 const loadManagementList = async () => {
   managementLoading.value = true
   try {
-    const response = await getManageList()
+    const params = teacherSearch.value ? { teacherName: teacherSearch.value } : {}
+    const response = await getManageList(params)
     if (response.code === 200) {
       managementList.value = response.rows || []
     }

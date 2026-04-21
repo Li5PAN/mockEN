@@ -3,20 +3,29 @@ import { message } from 'ant-design-vue'
 
 // 创建 axios 实例
 const request = axios.create({
-  baseURL: import.meta.env.VITE_PROXY_DOMAIN_REAL || 'http://106.52.154.12:58080',
-  timeout: 15000,
-  headers: {
-    'Content-Type': 'application/json;charset=UTF-8'
-  }
+  baseURL: '/api',  // 使用代理，避免跨域问题
+  timeout: 15000
+  // 注意：不要在这里设置默认的 Content-Type
+  // axios 会自动为 FormData 设置正确的 multipart/form-data
 })
 
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
+    // 登录接口不需要 token
+    if (config.url.includes('/auth/login')) {
+      return config
+    }
+    
     // 从 localStorage 获取 token
     const token = localStorage.getItem('token')
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
+    }
+    
+    // 如果不是 FormData（没有设置 Content-Type），设置默认的 JSON Content-Type
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json;charset=UTF-8'
     }
     
     return config
@@ -30,13 +39,21 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    // 对于 blob 类型请求，直接返回原始 response
+    if (response.config.responseType === 'blob') {
+      return response
+    }
+
     const res = response.data
-    
+
     console.log('API 响应:', res)
-    
-    // 根据后端返回的状态码判断
-    // 这里假设后端返回格式为 { code: xxx, data: xxx, message: xxx }
-    if (res.code === 200 || res.code === '200' || res.code === 0 || res.code === '0') {
+
+    // 支持两种响应格式：
+    // 1. { code: 200, data: xxx, ... }
+    // 2. { success: true, data: xxx, ... }
+    const isSuccess = res.code === 200 || res.code === '200' || res.code === 0 || res.code === '0' || res.success === true
+
+    if (isSuccess) {
       return res
     } else {
       // 业务错误
