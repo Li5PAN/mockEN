@@ -20,10 +20,18 @@
           style="margin-bottom: 20px"
         />
         <a-alert
-          v-else
+          v-else-if="lastClassLevel"
           message="重新入班提示"
           :description="`您上次的班级等级为${lastClassLevel}级，只能选择${lastClassLevel}级或更低等级的班级。`"
           type="warning"
+          show-icon
+          style="margin-bottom: 20px"
+        />
+        <a-alert
+          v-else
+          message="选择班级"
+          description="请从以下班级中选择一个提交入班申请，等待老师审核。"
+          type="info"
           show-icon
           style="margin-bottom: 20px"
         />
@@ -230,13 +238,15 @@ import { message } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
 import {
-  mockGetClassStatus,
-  mockGetMyClassInfo,
-  mockGetClassList,
-  mockGetClassRanking,
-  mockJoinClass,
-  mockQuitClass
-} from '../mockjson/myclass.js'
+  getClassStatus,
+  getClassList,
+  getMyClassInfo,
+  getClassRanking,
+  getClassTrend,
+  applyJoinClass,
+  quitClass,
+  applyChangeClass
+} from '@/services/student/smyclass.js'
 
 const router = useRouter()
 
@@ -262,12 +272,12 @@ const allClasses = ref([])
 const fetchClassList = async (level) => {
   loading.value = true
   try {
-    const res = await mockGetClassList(level)
+    const res = await getClassList(level)
     if (res.code === 200) {
       allClasses.value = res.rows.map(item => ({
         id: item.classId,
-        level: item.classLevel,
-        name: item.className,
+        level: item.level,
+        name: item.name,
         teacher: item.teacherName,
         studentCount: item.memberCount,
         totalTasks: item.taskCount
@@ -322,11 +332,12 @@ const ClassStatus = {
 // 加载学生班级状态
 const loadClassStatus = async () => {
   try {
-    const res = await mockGetClassStatus()
+    const res = await getClassStatus()
     if (res.code === 200 && res.data) {
       const data = res.data
       const status = data.status
       isFirstJoin.value = data.isFirstJoin
+      lastClassLevel.value = data.lastClassLevel || null
 
       if (status === 1) { // 已入班
         hasClass.value = true
@@ -364,7 +375,7 @@ const currentClassName = ref(null)
 // 加载我的班级信息
 const loadMyClassInfo = async () => {
   try {
-    const res = await mockGetMyClassInfo()
+    const res = await getMyClassInfo()
     if (res.code === 200 && res.data) {
       const data = res.data
       currentClass.value = {
@@ -455,7 +466,7 @@ const getCurrentUserId = () => {
 // 加载班级排行榜
 const loadClassRanking = async () => {
   try {
-    const res = await mockGetClassRanking()
+    const res = await getClassRanking()
     if (res.code === 200 && res.data) {
       const currentUserId = getCurrentUserId()
       topRankData.value = res.data.map((item, index) => ({
@@ -465,7 +476,7 @@ const loadClassRanking = async () => {
         completionRate: item.taskCompletionRate !== undefined ? `${item.taskCompletionRate}%` : '0%',
         questionCount: item.questionCount || 0,
         userId: item.userId,
-        isMe: item.userId && currentUserId && item.userId === currentUserId
+        isMe: item.isMe || (item.userId && currentUserId && item.userId === currentUserId)
       }))
     }
   } catch (error) {
@@ -482,10 +493,35 @@ let scrollTimer = null
 // 趋势图表
 const trendChartRef = ref(null)
 
+// 趋势数据
+const trendData = ref({
+  weeks: [],
+  classAvg: [],
+  myData: [],
+  wrongCount: []
+})
+
+// 加载班级学习趋势
+const loadClassTrend = async () => {
+  try {
+    const res = await getClassTrend()
+    if (res.code === 200 && res.data) {
+      trendData.value = {
+        weeks: res.data.weeks || [],
+        classAvg: res.data.classAvg || [],
+        myData: res.data.myData || [],
+        wrongCount: res.data.wrongCount || []
+      }
+    }
+  } catch (error) {
+    console.error('获取学习趋势失败:', error)
+  }
+}
+
 // 初始化趋势图表
 const initTrendChart = () => {
   if (!trendChartRef.value) return
-  
+
   const chart = echarts.init(trendChartRef.value)
   const option = {
     tooltip: {
@@ -509,7 +545,7 @@ const initTrendChart = () => {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: ['第1周', '第2周', '第3周', '第4周', '第5周', '第6周', '第7周', '第8周'],
+      data: trendData.value.weeks.length > 0 ? trendData.value.weeks : ['第1周', '第2周', '第3周', '第4周', '第5周', '第6周', '第7周', '第8周'],
     },
     yAxis: {
       type: 'value',
@@ -519,7 +555,7 @@ const initTrendChart = () => {
       {
         name: '班级平均做题数',
         type: 'line',
-        data: [45, 52, 58, 63, 70, 75, 82, 88],
+        data: trendData.value.classAvg.length > 0 ? trendData.value.classAvg : [45, 52, 58, 63, 70, 75, 82, 88],
         smooth: true,
         itemStyle: {
           color: '#1890ff',
@@ -534,7 +570,7 @@ const initTrendChart = () => {
       {
         name: '我的做题数',
         type: 'line',
-        data: [50, 58, 65, 72, 80, 88, 95, 102],
+        data: trendData.value.myData.length > 0 ? trendData.value.myData : [50, 58, 65, 72, 80, 88, 95, 102],
         smooth: true,
         itemStyle: {
           color: '#52c41a',
@@ -543,7 +579,7 @@ const initTrendChart = () => {
       {
         name: '班级错题数',
         type: 'line',
-        data: [12, 15, 18, 20, 22, 25, 28, 30],
+        data: trendData.value.wrongCount.length > 0 ? trendData.value.wrongCount : [12, 15, 18, 20, 22, 25, 28, 30],
         smooth: true,
         itemStyle: {
           color: '#ff4d4f',
@@ -633,7 +669,7 @@ const confirmApply = async () => {
   if (!selectedClass.value) return
 
   try {
-    const res = await mockJoinClass(selectedClass.value.classId || selectedClass.value.id)
+    const res = await applyJoinClass(selectedClass.value.classId || selectedClass.value.id)
     if (res.code === 200) {
       message.success(`已成功加入 ${selectedClass.value.name}！`)
       applyModalVisible.value = false
@@ -644,6 +680,7 @@ const confirmApply = async () => {
       if (hasClass.value) {
         // 加载排行榜和图表
         await loadClassRanking()
+        await loadClassTrend()
         await nextTick()
         initTrendChart()
         startTableScroll()
@@ -666,28 +703,56 @@ const showExitModal = () => {
 
 const confirmExit = async () => {
   try {
-    const res = await mockQuitClass()
-    if (res.code === 200) {
+    const res = await quitClass()
+    console.log('退出班级响应:', res)
+    if (res && (res.code === 200 || res.code === '200')) {
       // 保存上次班级等级
       const currentLevel = currentClass.value.level
-      localStorage.setItem('lastClassLevel_' + getCurrentUsername(), currentLevel)
+      const username = getCurrentUsername()
+      if (currentLevel) {
+        localStorage.setItem('lastClassLevel_' + username, currentLevel)
+      }
 
-      message.success('已成功退出班级')
+      message.success(res.msg || '已成功退出班级')
       exitModalVisible.value = false
+
+      // 重置状态
       hasClass.value = false
       isFirstJoin.value = false
+      lastClassLevel.value = currentLevel || null
+      currentClassId.value = null
+      currentClassName.value = null
+
+      // 清空数据
       stopCarousel()
       stopTableScroll()
+      topRankData.value = []
+      currentClass.value = {
+        level: '',
+        name: '',
+        teacher: '',
+        studentCount: 0,
+        myRank: 0,
+        taskCount: 0,
+        avgCompletionRate: 0,
+        myCompletionRate: 0,
+        totalTasks: 0,
+        completedTasks: 0
+      }
 
       selectedLevel.value = currentLevel || 'D'
 
-      topRankData.value = []
+      // 重新加载班级列表
+      await fetchClassList(selectedLevel.value)
     } else {
-      message.warning(res.msg || '操作失败')
+      message.warning(res?.msg || '退出班级失败，请重试')
     }
   } catch (error) {
     console.error('退出班级失败:', error)
     message.error('退出班级失败，请重试')
+
+    // 发生错误时，重新加载班级状态
+    await loadClassStatus()
   }
 }
 
@@ -701,7 +766,9 @@ onMounted(async () => {
   await loadClassStatus()
 
   if (hasClass.value) {
+    // 加载排行榜和图表
     await loadClassRanking()
+    await loadClassTrend()
     initTrendChart()
     startTableScroll()
   } else {

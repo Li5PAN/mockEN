@@ -69,8 +69,9 @@
         :loading="loading"
         :row-selection="rowSelection"
         :row-key="record => record.wrongId"
-        :pagination="{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }"
-        :scroll="{ x: 1200 }"
+        :pagination="pagination"
+        :scroll="{ x: 1400 }"
+        @change="handleTableChange"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'questionContent'">
@@ -115,6 +116,7 @@
       title="导入错题"
       @ok="handleImport"
       @cancel="importModalVisible = false"
+      :confirmLoading="importLoading"
     >
       <div class="import-modal-content">
         <a-button
@@ -168,6 +170,11 @@
           <p><strong>正确答案：</strong><span class="correct-text">{{ currentError.correctAnswer }}</span></p>
           <p><strong>您的答案：</strong><span class="wrong-text">{{ currentError.userAnswer }}</span></p>
         </div>
+
+        <a-divider>题目解析</a-divider>
+        <div class="explanation-section">
+          <p>{{ currentError.explanation || '暂无解析' }}</p>
+        </div>
       </div>
     </a-modal>
 
@@ -185,9 +192,9 @@
         </a-form-item>
         <a-form-item label="题目类型">
           <a-select v-model:value="editForm.questionType">
-            <a-select-option value="选择题">选择题</a-select-option>
-            <a-select-option value="单词拼写">单词拼写</a-select-option>
-            <a-select-option value="填空题">填空题</a-select-option>
+            <a-select-option value="1">选择题</a-select-option>
+            <a-select-option value="2">单词拼写</a-select-option>
+            <a-select-option value="3">填空题</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="正确答案">
@@ -205,10 +212,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
-  mockGetWrongQuestions,
-  mockDeleteWrongQuestions,
-  mockGetWrongQuestionDetail
-} from '../mockjson/myerror.js'
+  getErrorList,
+  getErrorDetail,
+  deleteError as deleteErrorApi,
+  batchDeleteErrors,
+  importErrors,
+  exportErrorsBlob,
+  downloadTemplateBlob,
+  updateError
+} from '@/services/student/smyerror.js'
 import {
   UploadOutlined,
   DownloadOutlined,
@@ -225,15 +237,30 @@ import {
 const columns = [
   { title: '题目内容', dataIndex: 'questionContent', key: 'questionContent', width: 350, ellipsis: true },
   { title: '题目类型', dataIndex: 'questionType', key: 'questionType', width: 100 },
+  { title: '正确答案', dataIndex: 'correctAnswer', key: 'correctAnswer', width: 120, ellipsis: true },
+  { title: '您的答案', dataIndex: 'userAnswer', key: 'userAnswer', width: 120, ellipsis: true },
   { title: '所属任务', dataIndex: 'taskName', key: 'taskName', width: 150, ellipsis: true },
-  { title: '错误日期', dataIndex: 'wrongDate', key: 'wrongDate', width: 160 },
-  { title: '错误次数', dataIndex: 'wrongCount', key: 'wrongCount', width: 80 },
+  { title: '错误日期', dataIndex: 'wrongDate', key: 'wrongDate', width: 120 },
+  { title: '掌握状态', dataIndex: 'isMastered', key: 'isMastered', width: 100 },
   { title: '操作', key: 'action', width: 120, fixed: 'right' },
 ]
 
 // 错题数据列表
 const errorList = ref([])
 const loading = ref(false)
+const total = ref(0)
+
+// 分页配置
+const pagination = computed(() => ({
+  pageSize: 10,
+  showSizeChanger: true,
+  showTotal: (total) => `共 ${total} 条`,
+  current: current.value,
+  total: total.value
+}))
+
+const current = ref(1)
+const pageSize = ref(10)
 
 // 筛选条件
 const filterType = ref('')
@@ -243,20 +270,25 @@ const filterDateRange = ref(null)
 const loadErrorList = async () => {
   loading.value = true
   try {
-    const params = {}
+    const params = {
+      pageNum: current.value,
+      pageSize: pageSize.value
+    }
     if (filterType.value) {
       params.questionType = filterType.value
     }
     if (filterDateRange.value && filterDateRange.value.length === 2) {
-      params.beginDate = filterDateRange.value[0].format('YYYY-MM-DD')
+      params.startDate = filterDateRange.value[0].format('YYYY-MM-DD')
       params.endDate = filterDateRange.value[1].format('YYYY-MM-DD')
     }
-    const res = await mockGetWrongQuestions(params)
+    const res = await getErrorList(params)
     if (res.code === 200) {
-      errorList.value = res.data || []
+      errorList.value = res.rows || []
+      total.value = res.total || 0
     }
   } catch (error) {
     console.error('加载错题列表失败:', error)
+    message.error('加载错题列表失败')
   } finally {
     loading.value = false
   }
@@ -269,6 +301,7 @@ onMounted(() => {
 
 // 应用筛选
 const applyFilter = () => {
+  current.value = 1
   loadErrorList()
 }
 
@@ -276,6 +309,14 @@ const applyFilter = () => {
 const resetFilter = () => {
   filterType.value = ''
   filterDateRange.value = null
+  current.value = 1
+  loadErrorList()
+}
+
+// 分页变化处理
+const handleTableChange = (pag) => {
+  current.value = pag.current
+  pageSize.value = pag.pageSize
   loadErrorList()
 }
 
@@ -315,29 +356,40 @@ const batchDelete = async () => {
     return
   }
   try {
-    await mockDeleteWrongQuestions(selectedRowKeys.value)
-    message.success(`已删除 ${selectedRowKeys.value.length} 条错题`)
-    selectedRowKeys.value = []
-    loadErrorList()
+    const res = await batchDeleteErrors(selectedRowKeys.value)
+    if (res.code === 200) {
+      message.success(`已删除 ${selectedRowKeys.value.length} 条错题`)
+      selectedRowKeys.value = []
+      loadErrorList()
+    } else {
+      message.error(res.msg || '批量删除失败')
+    }
   } catch (error) {
     console.error('批量删除错题失败:', error)
+    message.error('批量删除错题失败')
   }
 }
 
 // 删除单个错题
 const deleteError = async (record) => {
   try {
-    await mockDeleteWrongQuestions([record.wrongId])
-    message.success('删除成功')
-    loadErrorList()
+    const res = await deleteErrorApi(record.wrongId)
+    if (res.code === 200) {
+      message.success('删除成功')
+      loadErrorList()
+    } else {
+      message.error(res.msg || '删除失败')
+    }
   } catch (error) {
     console.error('删除错题失败:', error)
+    message.error('删除错题失败')
   }
 }
 
 // 导入相关
 const importModalVisible = ref(false)
 const fileList = ref([])
+const importLoading = ref(false)
 
 const showImportModal = () => {
   importModalVisible.value = true
@@ -352,39 +404,82 @@ const beforeUpload = (file) => {
   return false
 }
 
-const handleImport = () => {
+const handleImport = async () => {
   if (fileList.value.length === 0) {
     message.warning('请先选择文件')
     return
   }
-  message.success('导入成功！')
-  importModalVisible.value = false
-  fileList.value = []
-}
-
-// 下载导入模板
-const handleDownloadTemplate = () => {
-  message.success('模板下载成功！')
-}
-
-// 导出相关
-const handleExport = async ({ key }) => {
-  const idsToExport = selectedRowKeys.value.length > 0 ? selectedRowKeys.value : errorList.value.map(item => item.wrongId)
-
-  if (idsToExport.length === 0) {
-    message.warning('没有可导出的错题')
-    return
-  }
-
+  
+  importLoading.value = true
   try {
-    if (key === 'excel') {
-      message.loading({ content: '正在导出为 Excel 格式...', key: 'exportWrong' })
-      message.success({ content: '导出成功！', key: 'exportWrong' })
-    } else if (key === 'pdf') {
-      message.loading({ content: '正在导出为 PDF 格式...', key: 'exportWrong' })
-      message.success({ content: '导出成功！', key: 'exportWrong' })
+    const formData = new FormData()
+    formData.append('file', fileList.value[0].originFileObj)
+    
+    const res = await importErrors(formData)
+    if (res.code === 200) {
+      message.success(res.msg || '导入成功！')
+      importModalVisible.value = false
+      fileList.value = []
+      loadErrorList()
+    } else {
+      message.error(res.msg || '导入失败')
     }
   } catch (error) {
+    console.error('导入错题失败:', error)
+    message.error('导入错题失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 下载导入模板（处理文件流）
+const handleDownloadTemplate = async () => {
+  try {
+    const response = await downloadTemplateBlob()
+    // response.data 是 blob
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'student_error_template.xlsx'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success('模板下载成功！')
+  } catch (error) {
+    console.error('下载模板失败:', error)
+    message.error('下载模板失败')
+  }
+}
+
+// 导出相关（处理文件流）
+const handleExport = async ({ key }) => {
+  const format = key === 'excel' ? 'excel' : 'pdf'
+  const filename = format === 'excel' ? 'error_export.xlsx' : 'error_export.pdf'
+
+  try {
+    message.loading({ content: `正在导出为 ${format === 'excel' ? 'Excel' : 'PDF'} 格式...`, key: 'exportWrong' })
+
+    const response = await exportErrorsBlob(format)
+    // response.data 是 blob
+    const mimeType = format === 'excel'
+      ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      : 'application/pdf'
+    const blob = new Blob([response.data], { type: mimeType })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success({ content: '导出成功！', key: 'exportWrong' })
+  } catch (error) {
+    console.error('导出错题失败:', error)
     message.error({ content: '导出失败，请重试', key: 'exportWrong' })
   }
 }
@@ -396,12 +491,12 @@ const currentError = ref(null)
 const viewDetail = async (record) => {
   loading.value = true
   try {
-    const res = await mockGetWrongQuestionDetail(record.wrongId)
+    const res = await getErrorDetail(record.wrongId)
     if (res.code === 200 && res.data) {
       currentError.value = res.data
       detailModalVisible.value = true
     } else {
-      message.error('获取错题详情失败')
+      message.error(res.msg || '获取错题详情失败')
     }
   } catch (error) {
     console.error('获取错题详情失败:', error)
@@ -414,7 +509,7 @@ const viewDetail = async (record) => {
 // 编辑错题
 const editModalVisible = ref(false)
 const editForm = ref({
-  id: null,
+  wrongId: null,
   question: '',
   questionType: '',
   correctAnswer: '',
@@ -423,8 +518,8 @@ const editForm = ref({
 
 const editError = (record) => {
   editForm.value = {
-    id: record.id,
-    question: record.question,
+    wrongId: record.wrongId,
+    question: record.questionContent,
     questionType: record.questionType,
     correctAnswer: record.correctAnswer,
     explanation: record.explanation || '',
@@ -432,15 +527,31 @@ const editError = (record) => {
   editModalVisible.value = true
 }
 
-const saveEdit = () => {
-  const index = errorList.value.findIndex(item => item.id === editForm.value.id)
-  if (index > -1) {
-    errorList.value[index] = {
-      ...errorList.value[index],
-      ...editForm.value,
+const saveEdit = async () => {
+  if (!editForm.value.wrongId) {
+    message.error('缺少错题ID')
+    return
+  }
+  
+  try {
+    const data = {
+      questionContent: editForm.value.question,
+      questionType: editForm.value.questionType,
+      correctAnswer: editForm.value.correctAnswer,
+      explanation: editForm.value.explanation,
     }
-    message.success('编辑成功')
-    editModalVisible.value = false
+    
+    const res = await updateError(editForm.value.wrongId, data)
+    if (res.code === 200) {
+      message.success('编辑成功')
+      editModalVisible.value = false
+      loadErrorList()
+    } else {
+      message.error(res.msg || '编辑失败')
+    }
+  } catch (error) {
+    console.error('编辑错题失败:', error)
+    message.error('编辑错题失败')
   }
 }
 </script>
