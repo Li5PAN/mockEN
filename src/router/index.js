@@ -38,7 +38,7 @@ const defaultRouterList = [
   {
     path: '/register',
     name: 'Register',
-    component: () => import('../register.vue'),
+    component: () => import('../pages/register.vue'),
     meta: {
       title: '注册'
     }

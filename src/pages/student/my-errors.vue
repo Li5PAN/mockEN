@@ -166,9 +166,28 @@
           <p><strong>题目：</strong>{{ currentError.questionContent }}</p>
         </div>
 
+        <!-- 选择题选项展示 -->
+        <div v-if="currentError.questionType === '1' && parsedOptions.length > 0" class="options-section">
+          <a-divider>选项内容</a-divider>
+          <div
+            v-for="opt in parsedOptions"
+            :key="opt.key"
+            class="option-item"
+            :class="{
+              'correct-option': isOptionCorrect(opt.key),
+              'wrong-option': isOptionUserAnswer(opt.key) && !isOptionCorrect(opt.key)
+            }"
+          >
+            <span class="option-key">{{ opt.key }}.</span>
+            <span class="option-value">{{ opt.value }}</span>
+            <span v-if="isOptionCorrect(opt.key)" class="option-badge correct-badge">正确答案</span>
+            <span v-if="isOptionUserAnswer(opt.key) && !isOptionCorrect(opt.key)" class="option-badge wrong-badge">您的答案</span>
+          </div>
+        </div>
+
         <div class="answer-section">
-          <p><strong>正确答案：</strong><span class="correct-text">{{ currentError.correctAnswer }}</span></p>
-          <p><strong>您的答案：</strong><span class="wrong-text">{{ currentError.userAnswer }}</span></p>
+          <p><strong>正确答案：</strong><span class="correct-text">{{ currentError.questionType === '1' ? formatAnswer(currentError.correctAnswer) : currentError.correctAnswer }}</span></p>
+          <p><strong>您的答案：</strong><span class="wrong-text">{{ currentError.questionType === '1' ? formatUserAnswer(currentError.userAnswer) : currentError.userAnswer }}</span></p>
         </div>
 
         <a-divider>题目解析</a-divider>
@@ -487,6 +506,76 @@ const handleExport = async ({ key }) => {
 // 详情查看
 const detailModalVisible = ref(false)
 const currentError = ref(null)
+
+// 解析选项列表
+const parsedOptions = computed(() => {
+  if (!currentError.value || !currentError.value.options) return []
+  try {
+    if (typeof currentError.value.options === 'string') {
+      return JSON.parse(currentError.value.options)
+    }
+    return currentError.value.options
+  } catch {
+    return []
+  }
+})
+
+// 判断选项是否被选中（正确答案或用户答案）
+const isOptionCorrect = (key) => {
+  if (!currentError.value || !currentError.value.correctAnswer) return false
+  try {
+    const correct = JSON.parse(currentError.value.correctAnswer)
+    return Array.isArray(correct) ? correct.includes(key) : false
+  } catch {
+    return currentError.value.correctAnswer === key
+  }
+}
+
+const isOptionUserAnswer = (key) => {
+  if (!currentError.value || !currentError.value.userAnswer) return false
+  try {
+    const user = JSON.parse(currentError.value.userAnswer)
+    return Array.isArray(user) ? user.includes(key) : false
+  } catch {
+    return currentError.value.userAnswer === key
+  }
+}
+
+// 格式化答案文本（将选项 key 替换为 "key. 内容" 形式）
+const formatAnswer = (answer) => {
+  if (!answer) return '无'
+  try {
+    const keys = JSON.parse(answer)
+    if (!Array.isArray(keys)) return answer
+    const opts = parsedOptions.value
+    return keys.map(k => {
+      const opt = opts.find(o => o.key === k)
+      return opt ? `${k}. ${opt.value}` : k
+    }).join('；')
+  } catch {
+    const opts = parsedOptions.value
+    const opt = opts.find(o => o.key === answer)
+    return opt ? `${answer}. ${opt.value}` : answer
+  }
+}
+
+// 格式化用户答案文本
+const formatUserAnswer = (answer) => {
+  if (!answer) return '无'
+  try {
+    const keys = JSON.parse(answer)
+    if (!Array.isArray(keys)) return answer
+    const opts = parsedOptions.value
+    return keys.map(k => {
+      const opt = opts.find(o => o.key === k)
+      return opt ? `${k}. ${opt.value}` : k
+    }).join('；')
+  } catch {
+    const opts = parsedOptions.value
+    const opt = opts.find(o => o.key === answer)
+    return opt ? `${answer}. ${opt.value}` : answer
+  }
+}
 
 const viewDetail = async (record) => {
   loading.value = true

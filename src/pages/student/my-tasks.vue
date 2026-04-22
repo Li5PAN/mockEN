@@ -114,25 +114,9 @@
               <span>{{ question.questionContent }}</span>
             </div>
             
-            <!-- 单选题 -->
-            <a-radio-group 
-              v-if="question.type === 'single'"
-              v-model:value="question.userAnswer"
-              style="width: 100%"
-            >
-              <a-radio 
-                v-for="(option, optIndex) in question.options" 
-                :key="optIndex"
-                :value="option.key"
-                style="display: block; margin: 10px 0"
-              >
-                {{ option.key }}. {{ option.value }}
-              </a-radio>
-            </a-radio-group>
-
-            <!-- 多选题 -->
+            <!-- 选择题（支持多选，有选项时渲染） -->
             <a-checkbox-group 
-              v-if="question.type === 'multiple'"
+              v-if="(question.type === 'single' || question.type === 'multiple') && question.options && question.options.length > 0"
               v-model:value="question.userAnswer"
               style="width: 100%"
             >
@@ -145,6 +129,14 @@
                 {{ option.key }}. {{ option.value }}
               </a-checkbox>
             </a-checkbox-group>
+
+            <!-- 多选题/单选题（无选项时降级为输入框） -->
+            <a-input 
+              v-if="(question.type === 'single' || question.type === 'multiple') && (!question.options || question.options.length === 0)"
+              v-model:value="question.userAnswer"
+              placeholder="请输入答案"
+              style="margin-top: 10px; width: 100%"
+            />
 
             <!-- 填空题 -->
             <a-input 
@@ -177,14 +169,14 @@
         <a-spin :spinning="detailLoading">
           <!-- 结果统计 -->
           <a-row :gutter="16" style="margin-bottom: 20px">
-            <a-col :span="6">
+            <!-- <a-col :span="6">
               <a-statistic 
                 title="得分" 
                 :value="currentTask?.score" 
                 suffix="分"
                 :value-style="{ color: (currentTask?.score ?? 0) >= 60 ? '#52c41a' : '#ff4d4f' }"
               />
-            </a-col>
+            </a-col> -->
             <a-col :span="6">
               <a-statistic 
                 title="正确题数" 
@@ -216,7 +208,7 @@
             <a-descriptions-item label="题目总量">{{ currentTask?.totalQuestions || currentTask?.questionCount }}题</a-descriptions-item>
             <a-descriptions-item label="所属班级">{{ currentTask?.className }}</a-descriptions-item>
             <a-descriptions-item label="授课老师">{{ currentTask?.teacherName }}</a-descriptions-item>
-            <a-descriptions-item label="完成时间">{{ currentTask?.submitTime || '-' }}</a-descriptions-item>
+            <!-- <a-descriptions-item label="完成时间">{{ currentTask?.submitTime || '-' }}</a-descriptions-item> -->
           </a-descriptions>
 
           <a-divider>题目与答案</a-divider>
@@ -233,8 +225,8 @@
               </a-tag>
             </div>
             
-            <!-- 单选题/多选题 -->
-            <div v-if="question.type === 'single' || question.type === 'multiple'" class="question-options">
+            <!-- 多选题选项 -->
+            <div v-if="(question.type === 'single' || question.type === 'multiple') && question.options && question.options.length > 0" class="question-options">
               <div 
                 v-for="(option, optIndex) in question.options" 
                 :key="optIndex"
@@ -251,6 +243,20 @@
                 <a-tag v-if="isUserOption(question, option.key) && !isCorrectOption(question, option.key)" color="error" style="margin-left: 10px">
                   您的答案
                 </a-tag>
+              </div>
+            </div>
+
+            <!-- 多选题无选项时显示答案 -->
+            <div v-if="question.type === 'multiple' && (!question.options || question.options.length === 0)" class="answer-section">
+              <div class="answer-item">
+                <strong>正确答案：</strong>
+                <span class="correct-text">{{ question.correctAnswer || '-' }}</span>
+              </div>
+              <div class="answer-item">
+                <strong>您的答案：</strong>
+                <span :class="question.userAnswer === question.correctAnswer ? 'correct-text' : 'wrong-text'">
+                  {{ question.userAnswer || '未作答' }}
+                </span>
               </div>
             </div>
 
@@ -283,8 +289,8 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import myTaskService from '@/services/myTask'
-const { getMyTasks, getTaskQuestions, getTaskDetail, submitTaskAnswers } = myTaskService
+import taskService from '@/services/student/smytask'
+const { getTaskList, getTaskDetail, submitTask: submitTaskApi, getTaskResult } = taskService
 
 // 任务状态：pending-未完成，completed-已完成
 const taskStatus = ref('pending')
@@ -326,11 +332,10 @@ const completedTasks = ref([])
 const fetchTasks = async () => {
   loading.value = true
   try {
-    const completed = taskStatus.value === 'completed' ? 'true' : 'false'
-    const res = await getMyTasks({ completed })
+    const res = await getTaskList({ status: taskStatus.value, pageNum: 1, pageSize: 100 })
     
     if (res && res.code === 200) {
-      const data = res.data || []
+      const data = res.rows || []
       if (taskStatus.value === 'pending') {
         pendingTasks.value = data
       } else {
@@ -379,25 +384,25 @@ const getTaskStatusText = (status) => {
 
 // 任务类型映射
 const taskTypeMap = {
-  '1': '单词测试',
-  '2': '阅读理解',
-  '3': '语法练习',
-  '4': '听力练习',
-  '5': '写作练习',
+  '1': '日常练习',
+  '2': '单元测试',
+  '3': '期中考试',
+  '4': '期末考试',
+  '5': '专项练习',
 }
 
 // 任务类型颜色
 const getTaskTypeColor = (type) => {
   const colors = {
-    '单词测试': 'blue',
-    '阅读理解': 'green',
-    '语法练习': 'orange',
-    '听力练习': 'purple',
-    '写作练习': 'cyan',
+    '日常练习': 'blue',
+    '单元测试': 'purple',
+    '期中考试': 'red',
+    '期末考试': 'magenta',
+    '专项练习': 'cyan',
     '1': 'blue',
-    '2': 'green',
-    '3': 'orange',
-    '4': 'purple',
+    '2': 'purple',
+    '3': 'red',
+    '4': 'magenta',
     '5': 'cyan',
   }
   return colors[type] || 'default'
@@ -406,13 +411,6 @@ const getTaskTypeColor = (type) => {
 // 任务类型文本
 const getTaskTypeText = (type) => {
   return taskTypeMap[type] || type || '未知'
-}
-
-// 题目类型映射
-const questionTypeMap = {
-  '1': 'single',
-  '2': 'multiple',
-  '3': 'input',
 }
 
 // 做题弹窗相关
@@ -450,35 +448,22 @@ const startTask = async (task) => {
   doTaskModalVisible.value = true
   
   try {
-    const res = await getTaskQuestions(task.taskId)
+    const res = await getTaskDetail(task.taskId)
     
     if (res && res.code === 200 && res.data) {
       const taskData = res.data
       currentTask.value = {
         ...task,
         ...taskData,
-        taskTypeText: getTaskTypeText(taskData.taskType),
-        taskStatusText: taskData.taskStatusText,
       }
       currentQuestions.value = (taskData.questions || []).map(q => {
-        let options = []
-        if (q.options) {
-          try {
-            const parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
-            options = Object.entries(parsedOptions).map(([key, value]) => ({ key, value }))
-          } catch (e) {
-            options = []
-          }
-        }
-        
         return {
           questionId: q.questionId,
-          questionName: q.questionName,
           questionContent: q.questionContent,
-          questionType: q.questionType,
-          type: questionTypeMap[q.questionType] || 'single',
-          options: options,
-          userAnswer: null,
+          type: q.type,
+          options: q.options || [],
+          score: q.score,
+          userAnswer: (q.type === 'input' ? null : []),
         }
       })
       startTimer()
@@ -505,29 +490,29 @@ const closeTaskModal = () => {
 
 // 提交任务
 const submitTask = async () => {
-  const unanswered = currentQuestions.value.some(q => !q.userAnswer)
-  if (unanswered) {
-    message.warning('请完成所有题目后再提交')
+  const allBlank = currentQuestions.value.every(q => {
+    if (q.type === 'input') return !q.userAnswer
+    if (Array.isArray(q.userAnswer)) return q.userAnswer.length === 0
+    return !q.userAnswer
+  })
+  if (allBlank) {
+    message.warning('请至少回答一道题目后再提交')
     return
   }
 
   stopTimer()
 
-  const answers = currentQuestions.value.map(q => ({
-    questionId: q.questionId,
-    answer: Array.isArray(q.userAnswer) ? q.userAnswer.join(',') : q.userAnswer,
-  }))
+  const answers = {}
+  currentQuestions.value.forEach(q => {
+    answers[q.questionId] = q.userAnswer
+  })
 
   try {
-    const res = await submitTaskAnswers({
-      taskId: currentTask.value.taskId,
-      answers: answers,
-      timeUsed: timeUsed.value,
-    })
+    const res = await submitTaskApi(currentTask.value.taskId, answers)
 
     if (res && res.code === 200 && res.data) {
       const result = res.data
-      message.success(`提交成功！（答对${result.correctCount}题，答错${result.wrongCount}题）`)
+      message.success(res.msg || `提交成功！（答对${result.correctCount}题，答错${result.wrongCount}题）`)
       
       await fetchTasks()
       closeTaskModal()
@@ -552,33 +537,21 @@ const viewDetail = async (task) => {
   detailModalVisible.value = true
   
   try {
-    const res = await getTaskDetail(task.taskId)
+    const res = await getTaskResult(task.taskId)
     
     if (res && res.code === 200 && res.data) {
       const taskData = res.data
       currentTask.value = {
         ...task,
         ...taskData,
-        taskTypeText: getTaskTypeText(taskData.taskType),
-        taskStatusText: taskData.taskStatusText,
       }
       currentTaskDetail.value = (taskData.questions || []).map(q => {
-        let options = []
-        if (q.options) {
-          try {
-            const parsedOptions = typeof q.options === 'string' ? JSON.parse(q.options) : q.options
-            options = Object.entries(parsedOptions).map(([key, value]) => ({ key, value }))
-          } catch (e) {
-            options = []
-          }
-        }
-        
         return {
           questionId: q.questionId,
-          questionName: q.questionName,
           questionContent: q.questionContent,
-          type: questionTypeMap[q.questionType] || 'single',
-          options: options,
+          type: q.type,
+          options: q.options || [],
+          score: q.score,
           correctAnswer: q.correctAnswer,
           userAnswer: q.userAnswer,
           isCorrect: q.isCorrect,
@@ -598,21 +571,21 @@ const viewDetail = async (task) => {
 
 // 答案判断辅助函数
 const isCorrectOption = (question, optionKey) => {
-  if (!question.correctAnswer) return false
-  if (question.type === 'multiple') {
-    const correctOptions = question.correctAnswer.split(',').map(s => s.trim())
-    return correctOptions.includes(optionKey)
+  const correct = question.correctAnswer
+  if (!correct) return false
+  if (Array.isArray(correct)) {
+    return correct.includes(optionKey)
   }
-  return question.correctAnswer === optionKey
+  return correct === optionKey
 }
 
 const isUserOption = (question, optionKey) => {
-  if (!question.userAnswer) return false
-  if (question.type === 'multiple') {
-    const userOptions = question.userAnswer.split(',').map(s => s.trim())
-    return userOptions.includes(optionKey)
+  const userAnswer = question.userAnswer
+  if (!userAnswer) return false
+  if (Array.isArray(userAnswer)) {
+    return userAnswer.includes(optionKey)
   }
-  return question.userAnswer === optionKey
+  return userAnswer === optionKey
 }
 
 // 统计正确/错误题数

@@ -42,7 +42,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { register } from '@/services/authService.js'
+import authService from '@/services/authService.js'
 
 const router = useRouter()
 
@@ -80,7 +80,7 @@ const handleRegister = async () => {
   loading.value = true
 
   try {
-    const res = await register({
+    const res = await authService.register({
       username,
       password,
       code

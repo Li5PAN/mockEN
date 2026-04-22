@@ -143,40 +143,48 @@ export const getClassTrend = () => {
  * 功能说明：学生申请加入指定班级。
  *
  * @param {number} classId - 要加入的班级ID
+ * @param {string} reason - 申请理由（非首次入班必须）
+ * @param {boolean} isFirstJoin - 是否首次入班（D级首次可不填理由）
  * @returns {Promise} 返回入班申请结果
  *
  * 请求数据:
  * - classId: number 班级ID
+ * - reason: string 申请理由
  *
  * 响应数据:
  * - code: 200成功, 400失败
  * - msg: string 提示信息
  * - data: { classId, className }
  */
-export const applyJoinClass = (classId) => {
+export const applyJoinClass = (classId, reason = '', isFirstJoin = false) => {
   return request({
     url: '/student-class/apply',
     method: 'POST',
-    data: { classId }
+    data: { classId, reason, isFirstJoin }
   })
 }
 
 /**
- * 7. 退出班级
+ * 7. 退出班级（退班申请）
  * POST /api/student-class/quit
  *
- * 功能说明：学生退出当前班级。
+ * 功能说明：学生申请退出当前班级，需要老师审核通过才能退班成功。
  *
- * @returns {Promise} 返回退出班级结果
+ * @param {string} reason - 退班原因（必须填写）
+ * @returns {Promise} 返回退出班级申请结果
+ *
+ * 请求数据:
+ * - reason: string 退班原因
  *
  * 响应数据:
  * - code: 200成功, 400失败
  * - msg: string 提示信息
  */
-export const quitClass = () => {
+export const quitClass = (reason) => {
   return request({
     url: '/student-class/quit',
-    method: 'POST'
+    method: 'POST',
+    data: { reason }
   })
 }
 
@@ -184,24 +192,47 @@ export const quitClass = () => {
  * 8. 申请换班
  * POST /api/student-class/change
  *
- * 功能说明：学生申请换到其他班级。
+ * 功能说明：学生申请换到其他班级，需要双方老师共同审核。
  *
  * @param {number} classId - 目标班级ID
+ * @param {string} reason - 换班原因（必须填写）
  * @returns {Promise} 返回换班申请结果
  *
  * 请求数据:
  * - classId: number 目标班级ID
+ * - reason: string 换班原因
  *
  * 响应数据:
  * - code: 200成功, 400失败
  * - msg: string 提示信息
  * - data: { classId, className }
  */
-export const applyChangeClass = (classId) => {
+export const applyChangeClass = (classId, reason) => {
   return request({
     url: '/student-class/change',
     method: 'POST',
-    data: { classId }
+    data: { classId, reason }
+  })
+}
+
+/**
+ * 9. 取消申请
+ * POST /api/student-class/cancel-application
+ *
+ * 功能说明：取消待审核的入班/换班/退班申请。
+ *
+ * @param {number} applicationId - 要取消的申请ID
+ * @returns {Promise} 返回取消申请结果
+ *
+ * 响应数据:
+ * - code: 200成功, 400失败
+ * - msg: string 提示信息
+ */
+export const cancelApplication = (applicationId) => {
+  return request({
+    url: '/student-class/cancel-application',
+    method: 'POST',
+    data: { applicationId }
   })
 }
 
@@ -237,5 +268,6 @@ export default {
   applyJoinClass,
   quitClass,
   applyChangeClass,
+  cancelApplication,
   checkCanApply
 }

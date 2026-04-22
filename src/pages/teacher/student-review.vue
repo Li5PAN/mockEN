@@ -8,15 +8,10 @@
           :data-source="joinApplications" 
           :loading="loading"
           :pagination="{ pageSize: 10 }"
-          :row-key="record => record.id"
+          :row-key="record => record.applicationId"
         >
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'classLevel'">
-              <a-tag :color="getLevelColor(record.classLevel)">
-                {{ record.classLevel }}级
-              </a-tag>
-            </template>
-            <template v-else-if="column.key === 'action'">
+            <template v-if="column.key === 'action'">
               <a-space>
                 <a-button type="primary" size="small" @click="handleApprove(record, 'join')">
                   通过
@@ -37,20 +32,10 @@
           :data-source="transferApplications" 
           :loading="loading"
           :pagination="{ pageSize: 10 }"
-          :row-key="record => record.id"
+          :row-key="record => record.applicationId"
         >
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'fromClassLevel'">
-              <a-tag :color="getLevelColor(record.fromClassLevel)">
-                {{ record.fromClassLevel }}级
-              </a-tag>
-            </template>
-            <template v-else-if="column.key === 'toClassLevel'">
-              <a-tag :color="getLevelColor(record.toClassLevel)">
-                {{ record.toClassLevel }}级
-              </a-tag>
-            </template>
-            <template v-else-if="column.key === 'action'">
+            <template v-if="column.key === 'action'">
               <a-space>
                 <a-button type="primary" size="small" @click="handleApprove(record, 'transfer')">
                   通过
@@ -71,15 +56,10 @@
           :data-source="quitApplications" 
           :loading="loading"
           :pagination="{ pageSize: 10 }"
-          :row-key="record => record.id"
+          :row-key="record => record.applicationId"
         >
           <template #bodyCell="{ column, record }">
-            <template v-if="column.key === 'classLevel'">
-              <a-tag :color="getLevelColor(record.classLevel)">
-                {{ record.classLevel }}级
-              </a-tag>
-            </template>
-            <template v-else-if="column.key === 'action'">
+            <template v-if="column.key === 'action'">
               <a-space>
                 <a-button type="primary" size="small" @click="handleApprove(record, 'quit')">
                   通过
@@ -93,23 +73,79 @@
         </a-table>
       </a-tab-pane>
     </a-tabs>
+
+    <!-- 通过申请弹窗 -->
+    <a-modal
+      v-model:open="approveModalVisible"
+      title="通过申请"
+      ok-text="确认通过"
+      cancel-text="取消"
+      :ok-button-props="{ disabled: approveLoading }"
+      :confirm-loading="approveLoading"
+      @ok="confirmApprove"
+      @cancel="approveModalVisible = false"
+    >
+      <div class="modal-form-item">
+        <div class="modal-label">通过原因（选填）</div>
+        <a-textarea
+          v-model:value="currentReason"
+          placeholder="请输入通过原因（可不填）"
+          :rows="3"
+          :maxlength="200"
+          show-count
+        />
+      </div>
+    </a-modal>
+
+    <!-- 拒绝申请弹窗 -->
+    <a-modal
+      v-model:open="rejectModalVisible"
+      title="拒绝申请"
+      ok-text="确认拒绝"
+      cancel-text="取消"
+      :ok-button-props="{ disabled: rejectLoading || !currentReason.trim() }"
+      :confirm-loading="rejectLoading"
+      @ok="confirmReject"
+      @cancel="rejectModalVisible = false"
+    >
+      <div class="modal-form-item">
+        <div class="modal-label required">拒绝原因（必填）</div>
+        <a-textarea
+          v-model:value="currentReason"
+          placeholder="请输入拒绝原因"
+          :rows="3"
+          :maxlength="200"
+          show-count
+        />
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-// 使用模拟数据
+// 使用真实 API 服务
 import {
-  mockGetApplicationList,
-  mockAuditApplication
-} from '@/pages/mockjson/teacher'
+  getApplications,
+  approveApplication,
+  rejectApplication
+} from '@/services/teacher/teacherClass'
 
 // 当前激活的标签页
 const activeTab = ref('join')
 
 // 加载状态
 const loading = ref(false)
+
+// 弹窗相关
+const approveModalVisible = ref(false)
+const rejectModalVisible = ref(false)
+const approveLoading = ref(false)
+const rejectLoading = ref(false)
+const currentReason = ref('')
+const currentRecord = ref(null)
+const currentType = ref('')
 
 // 入班申请列表列定义
 const joinColumns = [
@@ -259,19 +295,37 @@ const getLevelColor = (level) => {
   return colorMap[level] || 'default'
 }
 
-// 处理通过申请（使用模拟数据）
-const handleApprove = async (record, type) => {
+// 处理通过申请
+const handleApprove = (record, type) => {
+  currentRecord.value = record
+  currentType.value = type
+  currentReason.value = ''
+  approveModalVisible.value = true
+}
+
+// 处理拒绝申请
+const handleReject = (record, type) => {
+  currentRecord.value = record
+  currentType.value = type
+  currentReason.value = ''
+  rejectModalVisible.value = true
+}
+
+// 确认通过
+const confirmApprove = async () => {
+  const record = currentRecord.value
+  const type = currentType.value
   const typeMap = {
     join: '入班',
     transfer: '换班',
     quit: '退班'
   }
 
+  approveLoading.value = true
   try {
-    const res = await mockAuditApplication(record.applicationId, '1')
+    const res = await approveApplication(record.applicationId, currentReason.value)
     if (res.code === 200) {
-      message.success(`已通过 ${record.userName} 的${typeMap[type]}申请`)
-      // 从列表中移除该申请
+      message.success(`已通过 ${record.userName || record.studentName} 的${typeMap[type]}申请`)
       if (type === 'join') {
         joinApplications.value = joinApplications.value.filter(item => item.applicationId !== record.applicationId)
       } else if (type === 'transfer') {
@@ -279,28 +333,38 @@ const handleApprove = async (record, type) => {
       } else if (type === 'quit') {
         quitApplications.value = quitApplications.value.filter(item => item.applicationId !== record.applicationId)
       }
+      approveModalVisible.value = false
     } else {
       message.error(res.msg || '操作失败')
     }
   } catch (error) {
     console.error('审核通过失败:', error)
     message.error('操作失败，请稍后重试')
+  } finally {
+    approveLoading.value = false
   }
 }
 
-// 处理拒绝申请（使用模拟数据）
-const handleReject = async (record, type) => {
+// 确认拒绝
+const confirmReject = async () => {
+  const record = currentRecord.value
+  const type = currentType.value
   const typeMap = {
     join: '入班',
     transfer: '换班',
     quit: '退班'
   }
 
+  if (!currentReason.value.trim()) {
+    message.error('请填写拒绝原因')
+    return
+  }
+
+  rejectLoading.value = true
   try {
-    const res = await mockAuditApplication(record.applicationId, '2')
+    const res = await rejectApplication(record.applicationId, currentReason.value)
     if (res.code === 200) {
-      message.success(`已拒绝 ${record.userName} 的${typeMap[type]}申请`)
-      // 从列表中移除该申请
+      message.success(`已拒绝 ${record.userName || record.studentName} 的${typeMap[type]}申请`)
       if (type === 'join') {
         joinApplications.value = joinApplications.value.filter(item => item.applicationId !== record.applicationId)
       } else if (type === 'transfer') {
@@ -308,56 +372,71 @@ const handleReject = async (record, type) => {
       } else if (type === 'quit') {
         quitApplications.value = quitApplications.value.filter(item => item.applicationId !== record.applicationId)
       }
+      rejectModalVisible.value = false
     } else {
       message.error(res.msg || '操作失败')
     }
   } catch (error) {
     console.error('审核拒绝失败:', error)
     message.error('操作失败，请稍后重试')
+  } finally {
+    rejectLoading.value = false
   }
 }
 
-// 加载申请数据（使用模拟数据）
+// 加载申请数据
 const loadData = async () => {
   loading.value = true
   try {
     // 加载入班申请数据 (applicationType: 1)
-    const joinRes = await mockGetApplicationList({
+    const joinRes = await getApplications({
       applicationType: 1,
       pageNum: 1,
       pageSize: 10
     })
     if (joinRes.code === 200) {
-      // 后端分页数据在 data.rows 中
-      joinApplications.value = (joinRes.data?.rows || joinRes.rows || []).map(item => ({
+      joinApplications.value = ((joinRes.rows) || []).map(item => ({
         ...item,
-        id: item.applicationId
+        id: item.applicationId,
+        userName: item.studentName,
+        className: item.targetClassName,
+        applicationReason: item.reason,
+        applicationTime: item.createTime
       }))
     }
 
     // 加载换班申请数据 (applicationType: 2)
-    const transferRes = await mockGetApplicationList({
+    const transferRes = await getApplications({
       applicationType: 2,
       pageNum: 1,
       pageSize: 10
     })
     if (transferRes.code === 200) {
-      transferApplications.value = (transferRes.data?.rows || transferRes.rows || []).map(item => ({
+      transferApplications.value = ((transferRes.rows) || []).map(item => ({
         ...item,
-        id: item.applicationId
+        id: item.applicationId,
+        userName: item.studentName,
+        fromClassName: item.sourceClassName,
+        toClassName: item.targetClassName,
+        applicationReason: item.reason,
+        applicationTime: item.createTime
       }))
     }
 
     // 加载退班申请数据 (applicationType: 3)
-    const quitRes = await mockGetApplicationList({
+    const quitRes = await getApplications({
       applicationType: 3,
       pageNum: 1,
       pageSize: 10
     })
     if (quitRes.code === 200) {
-      quitApplications.value = (quitRes.data?.rows || quitRes.rows || []).map(item => ({
+      quitApplications.value = ((quitRes.rows) || []).map(item => ({
         ...item,
-        id: item.applicationId
+        id: item.applicationId,
+        userName: item.studentName,
+        className: item.sourceClassName,
+        applicationReason: item.reason,
+        applicationTime: item.createTime
       }))
     }
   } catch (error) {

@@ -49,9 +49,30 @@
   line-height: 1.8;
   background: #f5f5f5;
   border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.option-key {
+  font-weight: 600;
+  color: #333;
+  min-width: 20px;
+}
+
+.option-value {
+  color: #333;
+  word-break: break-all;
 }
 
 .correct-option {
+  background: #f6ffed;
+  border-color: #b7eb8f;
+}
+
+.correct-option .option-key,
+.correct-option .option-value {
   color: #52c41a;
-  font-weight: 500;
 }

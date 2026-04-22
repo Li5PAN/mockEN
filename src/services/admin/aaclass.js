@@ -27,18 +27,20 @@ export const getManageList = (params) => {
 }
 
 // 审核通过班级
-export const approveClass = (classId) => {
+export const approveClass = (classId, reason) => {
   return request({
     url: `/admin-home/class-review/approve/${classId}`,
-    method: 'post'
+    method: 'post',
+    data: reason ? { reason } : {}
   })
 }
 
 // 拒绝班级
-export const rejectClass = (classId) => {
+export const rejectClass = (classId, reason) => {
   return request({
     url: `/admin-home/class-review/reject/${classId}`,
-    method: 'post'
+    method: 'post',
+    data: { reason }
   })
 }
 

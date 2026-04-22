@@ -60,6 +60,9 @@
   border-radius: 4px;
   background: white;
   border: 1px solid #d9d9d9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .option-item.correct-option {
@@ -70,6 +73,34 @@
 .option-item.wrong-option {
   background: #fff2e8;
   border-color: #ffbb96;
+}
+
+.option-key {
+  font-weight: 600;
+  color: #333;
+  min-width: 20px;
+}
+
+.option-value {
+  color: #333;
+  flex: 1;
+}
+
+.option-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.correct-badge {
+  background: #52c41a;
+  color: #fff;
+}
+
+.wrong-badge {
+  background: #ff4d4f;
+  color: #fff;
 }
 
 .answer-section {

@@ -62,7 +62,7 @@
           <a-col :span="6">
             <a-statistic 
               title="题目总数" 
-              :value="errorList.length" 
+              :value="pagination.total" 
               suffix="题"
               :value-style="{ color: '#cf1322' }"
             />
@@ -85,10 +85,8 @@
             </a-button>
             <template #overlay>
               <a-menu @click="handleExport">
-                <a-menu-item key="excel-all">导出全部（Excel）</a-menu-item>
-                <a-menu-item key="pdf-all">导出全部（PDF）</a-menu-item>
-                <a-menu-item key="excel-filtered">导出筛选结果（Excel）</a-menu-item>
-                <a-menu-item key="pdf-filtered">导出筛选结果（PDF）</a-menu-item>
+                <a-menu-item key="excel">导出 Excel</a-menu-item>
+                <a-menu-item key="pdf">导出 PDF</a-menu-item>
               </a-menu>
             </template>
           </a-dropdown>
@@ -116,7 +114,8 @@
         :data-source="errorList" 
         :loading="loading"
         :row-selection="rowSelection"
-        :pagination="{ pageSize: 10 }"
+        :pagination="pagination"
+        @change="handleTableChange"
         :row-key="record => record.questionId"
       >
         <template #bodyCell="{ column, record }">
@@ -126,9 +125,10 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'classLevel'">
-            <a-tag :color="getLevelColor(record.classLevel)">
+            <a-tag v-if="record.classLevel" :color="getLevelColor(record.classLevel)">
               {{ record.classLevel }}级
             </a-tag>
+            <span v-else style="color: #999;">-</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space>
@@ -222,21 +222,20 @@
           <a-descriptions-item label="选项" v-if="selectedError.questionType === '1' && selectedError.options">
             <div class="options-detail">
               <div 
-                v-for="optionItem in parseOptions(selectedError.options).slice(0, 15)" 
+                v-for="optionItem in parseOptions(selectedError.options)" 
                 :key="optionItem[0]"
-                class="option-detail-item"
+                :class="['option-detail-item', { 'correct-option': selectedError.correctAnswer && selectedError.correctAnswer.split(',').includes(optionItem[0]) }]"
               >
-                <span :class="{ 'correct-option': selectedError.correctAnswer && selectedError.correctAnswer.includes(optionItem[0]) }">
-                  {{ optionItem[0] }}. {{ optionItem[1] }}
-                  <a-tag 
-                    v-if="selectedError.correctAnswer && selectedError.correctAnswer.includes(optionItem[0])" 
-                    color="success" 
-                    size="small"
-                    style="margin-left: 8px;"
-                  >
-                    正确答案
-                  </a-tag>
-                </span>
+                <span class="option-key">{{ optionItem[0] }}.</span>
+                <span class="option-value">{{ optionItem[1] }}</span>
+                <a-tag 
+                  v-if="selectedError.correctAnswer && selectedError.correctAnswer.split(',').includes(optionItem[0])" 
+                  color="success" 
+                  size="small"
+                  style="margin-left: 8px;"
+                >
+                  正确答案
+                </a-tag>
               </div>
             </div>
           </a-descriptions-item>
@@ -250,7 +249,7 @@
             <span style="color: #cf1322; font-weight: bold;">{{ selectedError.wrongCount }} 次</span>
           </a-descriptions-item>
           <a-descriptions-item label="任务名称">
-            {{ selectedError.taskName }}
+            {{ selectedError.taskName || '手动上传' }}
           </a-descriptions-item>
           <a-descriptions-item label="创建时间">
             {{ selectedError.createTime }}
@@ -289,6 +288,16 @@ const filterClassLevel = ref('')
 // 错题列表
 const errorList = ref([])
 const loading = ref(false)
+
+// 分页参数
+const pagination = ref({
+  current: 1,
+  pageSize: 15,
+  total: 0,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  showTotal: (total) => `共 ${total} 条`
+})
 
 // 选中的行
 const selectedRowKeys = ref([])
@@ -329,7 +338,8 @@ const columns = [
     dataIndex: 'taskName',
     key: 'taskName',
     ellipsis: true,
-    width: 150
+    width: 150,
+    customRender: ({ text }) => text || '手动上传'
   },
   {
     title: '班级等级',
@@ -399,12 +409,15 @@ const getLevelColor = (level) => {
 // 解析选项（兼容数组和对象格式）
 const parseOptions = (options) => {
   try {
+    // 如果已经是数组（API直接返回的格式），直接返回
+    if (Array.isArray(options)) {
+      return options.map(item => [item.key, item.value])
+    }
+    // 如果是字符串，尝试解析
     const parsed = JSON.parse(options)
-    // 如果是数组，直接返回
     if (Array.isArray(parsed)) {
       return parsed
     }
-    // 如果是对象，转成数组格式
     if (typeof parsed === 'object') {
       return Object.entries(parsed)
     }
@@ -416,7 +429,9 @@ const parseOptions = (options) => {
 
 // 处理筛选变化
 const handleFilterChange = () => {
-  // 筛选逻辑已通过 computed 实现
+  // 重置分页并重新加载数据
+  pagination.value.current = 1
+  loadData()
 }
 
 // 搜索
@@ -526,53 +541,34 @@ const handleCancelImport = () => {
 
 // 处理导出
 const handleExport = async ({ key }) => {
-  // 判断是否为全部导出还是筛选导出
-  const isAll = key === 'excel-all' || key === 'pdf-all'
-  const exportType = key.includes('excel') ? 'excel' : 'pdf'
+  const exportType = key // 'excel' or 'pdf'
 
-  // 显示加载提示
   message.loading({ content: '正在导出...', key: 'export' })
   try {
-    // 构建导出参数
     const params = {
-      format: exportType,
-      scope: isAll ? 'all' : 'filtered'
+      format: exportType
     }
 
-    // 如果是筛选导出，添加筛选条件
-    if (!isAll) {
+    // 如果表格中已勾选内容，导出已勾选的内容；否则导出全部
+    if (selectedRowKeys.value.length > 0) {
       params.questionIds = selectedRowKeys.value.join(',')
-      if (filterDateRange.value && filterDateRange.value.length === 2) {
-        params.startDate = filterDateRange.value[0].format('YYYY-MM-DD')
-        params.endDate = filterDateRange.value[1].format('YYYY-MM-DD')
-      }
-      if (filterQuestionType.value) {
-        params.questionType = filterQuestionType.value
-      }
-      if (filterClassLevel.value) {
-        params.classLevel = filterClassLevel.value
-      }
     }
 
-    // 调用导出接口
     const response = await exportError(params)
     const blob = response.data
-    // 创建下载链接
     const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
-    // 生成文件名
-    const fileName = isAll
-      ? `错题全部导出_${new Date().getTime()}.${exportType}`
-      : `错题筛选导出_${new Date().getTime()}.${exportType}`
+    const fileName = selectedRowKeys.value.length > 0
+      ? `错题已选中导出_${new Date().getTime()}.${exportType}`
+      : `错题全部导出_${new Date().getTime()}.${exportType}`
 
     link.setAttribute('download', fileName)
     document.body.appendChild(link)
     link.click()
 
-    // 清理
-    link.parentNode.removeChild(link) // 删除链接节点
-    window.URL.revokeObjectURL(url) // 释放URL对象
+    link.parentNode.removeChild(link)
+    window.URL.revokeObjectURL(url)
 
     message.success({ content: '导出成功', key: 'export' })
   } catch (error) {
@@ -680,7 +676,10 @@ const loadData = async () => {
   loading.value = true
   try {
     // 构建查询参数
-    const params = {}
+    const params = {
+      pageNum: pagination.value.current,
+      pageSize: pagination.value.pageSize
+    }
 
     // 时间范围
     if (filterDateRange.value && filterDateRange.value.length === 2) {
@@ -702,6 +701,7 @@ const loadData = async () => {
     const res = await getErrorList(params)
     if (res.code === 200) {
       errorList.value = res.rows || []
+      pagination.value.total = res.total || 0
     } else {
       message.error(res.msg || '获取题目列表失败')
     }
@@ -711,6 +711,13 @@ const loadData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 表格分页变化处理
+const handleTableChange = (pag) => {
+  pagination.value.current = pag.current
+  pagination.value.pageSize = pag.pageSize
+  loadData()
 }
 
 onMounted(() => {

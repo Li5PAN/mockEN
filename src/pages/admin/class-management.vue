@@ -51,10 +51,10 @@
               </template>
               <template v-else-if="column.key === 'action'">
                 <a-space>
-                  <a-button type="primary" size="small" @click="handleApprove(record)">
+                  <a-button type="primary" size="small" @click="openReviewModal(record, 'approve')">
                     通过
                   </a-button>
-                  <a-button danger size="small" @click="handleReject(record)">
+                  <a-button danger size="small" @click="openReviewModal(record, 'reject')">
                     拒绝
                   </a-button>
                 </a-space>
@@ -93,6 +93,31 @@
         </a-tab-pane>
       </a-tabs>
     </a-card>
+
+    <!-- 审核操作弹窗 -->
+    <a-modal
+      v-model:open="modalState.visible"
+      :title="modalState.title"
+      :ok-text="modalState.okText"
+      cancel-text="取消"
+      :ok-button-props="{ disabled: modalState.action === 'reject' && !modalState.reason.trim() }"
+      :confirm-loading="modalState.loading"
+      @ok="handleModalOk"
+      @cancel="handleModalCancel"
+    >
+      <div style="margin-bottom: 8px;">
+        {{ modalState.content }}
+      </div>
+      <a-input
+        v-model:value="modalState.reason"
+        :placeholder="modalState.action === 'reject' ? '请输入拒绝原因（必填）' : '请输入通过原因（选填）'"
+        :maxlength="200"
+        show-count
+      />
+      <div v-if="modalState.action === 'reject'" style="margin-top: 8px; color: #ff4d4f; font-size: 12px;">
+        * 拒绝原因必须填写
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -124,6 +149,58 @@ const managementList = ref([])
 
 // 加载状态
 const managementLoading = ref(false)
+
+// 审核操作弹窗状态
+const modalState = ref({
+  visible: false,
+  action: '', // 'approve' | 'reject'
+  title: '',
+  content: '',
+  okText: '',
+  reason: '',
+  loading: false,
+  record: null
+})
+
+// 打开审核弹窗
+const openReviewModal = (record, action) => {
+  modalState.value = {
+    visible: true,
+    action,
+    title: action === 'approve' ? '确认通过' : '确认拒绝',
+    content: `确定${action === 'approve' ? '通过' : '拒绝'} "${record.className}" 的班级创建申请吗？`,
+    okText: action === 'approve' ? '确认通过' : '确认拒绝',
+    reason: '',
+    loading: false,
+    record
+  }
+}
+
+// 弹窗确认
+const handleModalOk = async () => {
+  const { action, record, reason } = modalState.value
+  modalState.value.loading = true
+  try {
+    if (action === 'approve') {
+      await approveClass(record.classId, reason || null)
+    } else {
+      await rejectClass(record.classId, reason)
+    }
+    reviewList.value = reviewList.value.filter(item => item.classId !== record.classId)
+    message.success(action === 'approve' ? '审核通过' : '已拒绝该申请')
+    modalState.value.visible = false
+  } catch (error) {
+    message.error('操作失败')
+  } finally {
+    modalState.value.loading = false
+  }
+}
+
+// 弹窗取消
+const handleModalCancel = () => {
+  modalState.value.visible = false
+  modalState.value.reason = ''
+}
 
 // 班级审核列表列定义
 const reviewColumns = [
@@ -257,44 +334,6 @@ const getLevelColor = (level) => {
 // 处理搜索
 const handleSearch = () => {
   loadData()
-}
-
-// 处理通过审核
-const handleApprove = async (record) => {
-  Modal.confirm({
-    title: '确认通过',
-    content: `确定通过 "${record.className}" 的班级创建申请吗？`,
-    okText: '确认',
-    cancelText: '取消',
-    async onOk() {
-      try {
-        await approveClass(record.classId)
-        reviewList.value = reviewList.value.filter(item => item.classId !== record.classId)
-        message.success('审核通过')
-      } catch (error) {
-        message.error('操作失败')
-      }
-    }
-  })
-}
-
-// 处理拒绝审核
-const handleReject = async (record) => {
-  Modal.confirm({
-    title: '确认拒绝',
-    content: `确定拒绝 "${record.className}" 的班级创建申请吗？`,
-    okText: '确认',
-    cancelText: '取消',
-    async onOk() {
-      try {
-        await rejectClass(record.classId)
-        reviewList.value = reviewList.value.filter(item => item.classId !== record.classId)
-        message.warning('已拒绝该申请')
-      } catch (error) {
-        message.error('操作失败')
-      }
-    }
-  })
 }
 
 // 处理删除班级

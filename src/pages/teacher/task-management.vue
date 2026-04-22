@@ -124,27 +124,29 @@
             </div>
             
             <div class="question-content">
-              <p><strong>题目内容：</strong>{{ question.content }}</p>
-              
+              <div class="question-meta">
+                <span><strong>分值：</strong>{{ question.score }}分</span>
+                <span v-if="question.questionId"><strong>题目ID：</strong>{{ question.questionId }}</span>
+              </div>
+              <p v-if="question.content"><strong>题目内容：</strong>{{ question.content }}</p>
+
               <!-- 选择题选项 -->
-              <div v-if="question.type === 'choice' && question.options">
-                <p><strong>选项：</strong></p>
-                <div 
-                  v-for="(option, optIndex) in question.options" 
-                  :key="optIndex"
-                  class="option-item"
+              <div v-if="question.type === 'choice' && question.options" class="options-list">
+                <div
+                  v-for="(optionText, optionKey) in question.options"
+                  :key="optionKey"
+                  :class="['option-item', { 'correct-answer': question.correctIndexes && question.correctIndexes.includes(optionKey) }]"
                 >
-                  <span :class="{ 'correct-answer': question.correctIndexes && question.correctIndexes.includes(optIndex) }">
-                    {{ String.fromCharCode(65 + optIndex) }}. {{ option }}
-                    <a-tag v-if="question.correctIndexes && question.correctIndexes.includes(optIndex)" color="success" size="small">
-                      正确答案
-                    </a-tag>
-                  </span>
+                  <span class="option-key">{{ optionKey }}.</span>
+                  <span class="option-text">{{ optionText }}</span>
+                  <a-tag v-if="question.correctIndexes && question.correctIndexes.includes(optionKey)" color="success" size="small">
+                    正确答案
+                  </a-tag>
                 </div>
               </div>
-              
+
               <!-- 填空题和单词拼写答案 -->
-              <p v-else>
+              <p v-else-if="question.answer">
                 <strong>正确答案：</strong>
                 <a-tag color="success">{{ question.answer }}</a-tag>
               </p>
@@ -209,8 +211,9 @@ const getLevelColor = (level) => {
 const getQuestionTypeLabel = (type) => {
   const typeMap = {
     choice: '选择题',
+    'fill-blank': '填空题',
     fillBlank: '填空题',
-    spelling: '单词拼写'
+    spell: '单词拼写'
   }
   return typeMap[type] || '未知题型'
 }
@@ -242,19 +245,22 @@ const showTaskDetail = async (task) => {
           const typeMap = {
             'choice': 'choice',
             'fill-blank': 'fillBlank',
-            'spell': 'spelling'
+            'spell': 'spell'
           }
-          // 解析选项 JSON 字符串
+          // options 是对象 { "A": "选项内容", "B": "选项内容" }
+          // correctIndexes 是数组 ["B", "D"]，值为选项的键
           let options = null
           let correctIndexes = null
           let answer = q.answer
-          if (q.options && Array.isArray(q.options)) {
+          if (q.options && typeof q.options === 'object') {
             options = q.options
             correctIndexes = q.correctIndexes || []
           }
           return {
+            questionId: q.questionId,
             type: typeMap[q.type] || q.type || 'choice',
             content: q.content,
+            score: q.score,
             options: options,
             correctIndexes: correctIndexes,
             answer: answer

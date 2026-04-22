@@ -42,7 +42,7 @@
 /* ========== 通用卡片覆盖 ========== */
 .my-class-container :deep(.ant-card) {
   background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
+  /* backdrop-filter: blur(12px); */
   border-radius: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -125,4 +125,52 @@
 .info-value {
   color: #333;
   font-weight: 500;
+}
+
+/* ========== 待审核申请提示卡片 ========== */
+.pending-review-card {
+  background: linear-gradient(135deg, #fffbe6 0%, #fff9f0 100%);
+  border: 1px solid #ffe58f;
+  border-radius: 12px;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(250, 173, 20, 0.12);
+}
+
+.pending-review-icon {
+  margin-bottom: 16px;
+}
+
+.pending-review-content {
+  max-width: 600px;
+}
+
+.pending-review-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #d48806;
+  margin-bottom: 10px;
+}
+
+.pending-review-info {
+  font-size: 15px;
+  color: #8c6d1f;
+  line-height: 1.7;
+  margin-bottom: 8px;
+}
+
+.pending-review-time {
+  font-size: 13px;
+  color: #ad8b47;
+}
+
+.pending-review-tip {
+  width: 100%;
+  max-width: 560px;
+  margin-top: 16px;
+  text-align: left;
 }

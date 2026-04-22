@@ -15,3 +15,18 @@
 :deep(.ant-tag) {
   margin-right: 8px;
 }
+
+.modal-form-item {
+  margin-bottom: 8px;
+}
+
+.modal-label {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.85);
+  margin-bottom: 8px;
+}
+
+.modal-label.required::before {
+  content: '* ';
+  color: #ff4d4f;
+}

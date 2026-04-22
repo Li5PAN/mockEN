@@ -78,10 +78,10 @@
             :lg="6"
           >
             <a-card class="class-card" hoverable>
-              <!-- 待审核标签 -->
-              <div class="pending-badge" v-if="classItem.pendingCount > 0">
+              <!-- 待审核标签（可点击查看详情） -->
+              <div class="pending-badge" v-if="classItem.pendingCount > 0" @click.stop="showApplicationReviewModal(classItem)">
                 <a-badge :count="classItem.pendingCount" :offset="[10, -5]">
-                  <span class="badge-text">待审核申请</span>
+                  <span class="badge-text">待审核申请（点击处理）</span>
                 </a-badge>
               </div>
 
@@ -344,6 +344,82 @@
         </a-button>
       </a-form>
     </a-modal>
+
+    <!-- 入班申请审核弹窗 -->
+    <a-modal
+      v-model:open="applicationReviewModalVisible"
+      :title="getReviewModalTitle()"
+      :footer="null"
+      width="800px"
+      @cancel="applicationReviewModalVisible = false"
+    >
+      <a-alert
+        v-if="reviewApplications.length === 0"
+        message="暂无待审核的申请"
+        type="info"
+        show-icon
+        style="margin-bottom: 16px"
+      />
+
+      <!-- 申请类型切换标签 -->
+      <a-tabs v-if="reviewApplications.length > 0" v-model:activeKey="activeApplicationTab" style="margin-bottom: 16px">
+        <a-tab-pane key="join" tab="入班申请" v-if="hasJoinApplications" />
+        <a-tab-pane key="changeIn" tab="转入申请" v-if="hasChangeInApplications" />
+        <a-tab-pane key="changeOut" tab="转出申请" v-if="hasChangeOutApplications" />
+        <a-tab-pane key="quit" tab="退班申请" v-if="hasQuitApplications" />
+      </a-tabs>
+
+      <a-table
+        v-else-if="filteredReviewApplications.length > 0"
+        :columns="reviewColumns"
+        :data-source="filteredReviewApplications"
+        :pagination="{ pageSize: 5 }"
+        :row-key="record => record.applicationId"
+        size="small"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'applicationType'">
+            <a-tag :color="getApplicationTypeColor(record.applicationType)">
+              {{ getApplicationTypeText(record.applicationType) }}
+            </a-tag>
+          </template>
+          <template v-if="column.key === 'sourceClass'">
+            <span v-if="record.sourceClassName">{{ record.sourceClassName }}</span>
+            <span v-else>-</span>
+          </template>
+          <template v-if="column.key === 'action'">
+            <a-space>
+              <a-button type="primary" size="small" @click="handleApprove(record)">
+                通过
+              </a-button>
+              <a-button danger size="small" @click="showRejectModal(record)">
+                拒绝
+              </a-button>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+    </a-modal>
+
+    <!-- 拒绝申请弹窗 -->
+    <a-modal
+      v-model:open="rejectModalVisible"
+      title="拒绝申请"
+      @ok="confirmReject"
+      @cancel="rejectModalVisible = false"
+      :confirm-loading="rejectLoading"
+    >
+      <p>确定要拒绝该申请吗？</p>
+      <a-form style="margin-top: 16px">
+        <a-form-item label="拒绝原因">
+          <a-textarea
+            v-model:value="rejectReason"
+            placeholder="请输入拒绝原因（可选）"
+            :rows="3"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -362,6 +438,11 @@ import {
   publishTaskWithQuestions,
   mapApiClassToPage
 } from '@/services/teacher/ttmyclass'
+import {
+  getApplications,
+  approveApplication,
+  rejectApplication
+} from '@/services/teacher/teacherClass'
 
 // 统计数据
 const statistics = reactive({
@@ -485,24 +566,10 @@ const handleCreateClass = async () => {
     const res = await createClass(createData)
 
     if (res.code === 200) {
-      message.success('班级创建成功')
+      message.success('班级创建成功，等待管理员审核通过后即可显示')
       createModalVisible.value = false
 
-      // 直接将新班级添加到列表前端（无需重新请求接口）
-      const newClass = {
-        id: res.data.classId,
-        name: res.data.className,
-        level: res.data.classLevel,
-        currentStudents: 0,
-        maxStudents: res.data.maxStudents,
-        taskCount: res.data.taskCount || 0,
-        createTime: formatDate(new Date()),
-        pendingCount: 0
-      }
-      classList.value.unshift(newClass)
-
-      // 更新统计数据
-      statistics.totalClasses++
+      // 不立即添加到列表，等待管理员审核通过后刷新列表才显示
 
       // 重置表单
       createFormRef.value.resetFields()
@@ -790,6 +857,195 @@ const formatDate = (dateStr) => {
 onMounted(() => {
   loadData()
 })
+
+// ========== 申请审核相关 ==========
+const applicationReviewModalVisible = ref(false)
+const reviewClass = ref(null)
+const reviewApplications = ref([])
+const activeApplicationTab = ref('join')
+
+// 拒绝弹窗相关
+const rejectModalVisible = ref(false)
+const rejectLoading = ref(false)
+const rejectReason = ref('')
+const currentRejectRecord = ref(null)
+
+// 申请类型常量
+const ApplicationType = {
+  JOIN: 1,      // 入班
+  CHANGE: 2,    // 换班
+  QUIT: 3       // 退班
+}
+
+// 获取审核弹窗标题
+const getReviewModalTitle = () => {
+  const className = reviewClass.value?.name || ''
+  const tabMap = {
+    join: '入班申请审核',
+    changeIn: '转入申请审核',
+    changeOut: '转出申请审核',
+    quit: '退班申请审核'
+  }
+  return `${tabMap[activeApplicationTab.value] || '申请审核'} - ${className}`
+}
+
+// 筛选各类申请
+const hasJoinApplications = computed(() => reviewApplications.value.some(a => a.applicationType === ApplicationType.JOIN))
+const hasChangeInApplications = computed(() => reviewApplications.value.some(a => a.applicationType === ApplicationType.CHANGE && a.targetClassId === reviewClass.value?.id))
+const hasChangeOutApplications = computed(() => reviewApplications.value.some(a => a.applicationType === ApplicationType.CHANGE && a.sourceClassId === reviewClass.value?.id))
+const hasQuitApplications = computed(() => reviewApplications.value.some(a => a.applicationType === ApplicationType.QUIT))
+
+// 根据当前标签筛选申请
+const filteredReviewApplications = computed(() => {
+  switch (activeApplicationTab.value) {
+    case 'join':
+      return reviewApplications.value.filter(a => a.applicationType === ApplicationType.JOIN)
+    case 'changeIn':
+      return reviewApplications.value.filter(a => a.applicationType === ApplicationType.CHANGE && a.targetClassId === reviewClass.value?.id)
+    case 'changeOut':
+      return reviewApplications.value.filter(a => a.applicationType === ApplicationType.CHANGE && a.sourceClassId === reviewClass.value?.id)
+    case 'quit':
+      return reviewApplications.value.filter(a => a.applicationType === ApplicationType.QUIT)
+    default:
+      return reviewApplications.value
+  }
+})
+
+// 获取申请类型文字
+const getApplicationTypeText = (type) => {
+  const map = {
+    1: '入班',
+    2: '换班',
+    3: '退班'
+  }
+  return map[type] || '未知'
+}
+
+// 获取申请类型颜色
+const getApplicationTypeColor = (type) => {
+  const map = {
+    1: 'blue',
+    2: 'purple',
+    3: 'orange'
+  }
+  return map[type] || 'default'
+}
+
+const reviewColumns = [
+  { title: '申请类型', dataIndex: 'applicationType', key: 'applicationType', width: 100 },
+  { title: '姓名', dataIndex: 'studentName', key: 'studentName', width: 100 },
+  { title: '申请时间', dataIndex: 'applicationTime', key: 'applicationTime', width: 180 },
+  { title: '原班级', key: 'sourceClass', width: 120 },
+  { title: '申请理由', dataIndex: 'applicationReason', key: 'applicationReason', ellipsis: true },
+  { title: '操作', key: 'action', width: 150, fixed: 'right' }
+]
+
+const showApplicationReviewModal = async (classItem) => {
+  reviewClass.value = classItem
+  applicationReviewModalVisible.value = true
+  // 重置到第一个有数据的标签
+  if (hasJoinApplications.value) {
+    activeApplicationTab.value = 'join'
+  } else if (hasChangeInApplications.value) {
+    activeApplicationTab.value = 'changeIn'
+  } else if (hasChangeOutApplications.value) {
+    activeApplicationTab.value = 'changeOut'
+  } else if (hasQuitApplications.value) {
+    activeApplicationTab.value = 'quit'
+  }
+  await loadReviewApplications(classItem.id)
+}
+
+const loadReviewApplications = async (classId) => {
+  try {
+    // 加载所有类型的申请
+    const res = await getApplications({ pageNum: 1, pageSize: 100 })
+    if (res.code === 200) {
+      reviewApplications.value = (res.rows || []).filter(item => {
+        // 入班申请：目标班级是当前班级
+        if (item.applicationType === ApplicationType.JOIN && item.targetClassId === classId) {
+          return true
+        }
+        // 换班申请：源班级或目标班级是当前班级
+        if (item.applicationType === ApplicationType.CHANGE && (item.sourceClassId === classId || item.targetClassId === classId)) {
+          return true
+        }
+        // 退班申请：源班级是当前班级
+        if (item.applicationType === ApplicationType.QUIT && item.sourceClassId === classId) {
+          return true
+        }
+        return false
+      })
+    }
+  } catch (error) {
+    console.error('加载申请列表失败:', error)
+  }
+}
+
+const handleApprove = async (record) => {
+  try {
+    const res = await approveApplication(record.applicationId)
+    if (res.code === 200) {
+      const typeText = getApplicationTypeText(record.applicationType)
+      message.success(`已通过该${typeText}申请`)
+      // 从列表中移除
+      reviewApplications.value = reviewApplications.value.filter(item => item.applicationId !== record.applicationId)
+      // 更新班级待审核数量
+      if (reviewClass.value) {
+        reviewClass.value.pendingCount = Math.max(0, (reviewClass.value.pendingCount || 1) - 1)
+      }
+      // 刷新统计数据
+      await loadStatistics()
+    } else {
+      message.error(res.msg || '操作失败')
+    }
+  } catch (error) {
+    console.error('审核通过失败:', error)
+    message.error('操作失败，请稍后重试')
+  }
+}
+
+// 显示拒绝弹窗
+const showRejectModal = (record) => {
+  currentRejectRecord.value = record
+  rejectReason.value = ''
+  rejectModalVisible.value = true
+}
+
+// 确认拒绝
+const confirmReject = async () => {
+  if (!currentRejectRecord.value) return
+
+  rejectLoading.value = true
+  try {
+    const res = await rejectApplication(currentRejectRecord.value.applicationId, rejectReason.value)
+    if (res.code === 200) {
+      const typeText = getApplicationTypeText(currentRejectRecord.value.applicationType)
+      message.success(`已拒绝该${typeText}申请`)
+      // 从列表中移除
+      reviewApplications.value = reviewApplications.value.filter(item => item.applicationId !== currentRejectRecord.value.applicationId)
+      // 更新班级待审核数量
+      if (reviewClass.value) {
+        reviewClass.value.pendingCount = Math.max(0, (reviewClass.value.pendingCount || 1) - 1)
+      }
+      // 刷新统计数据
+      await loadStatistics()
+      rejectModalVisible.value = false
+    } else {
+      message.error(res.msg || '操作失败')
+    }
+  } catch (error) {
+    console.error('审核拒绝失败:', error)
+    message.error('操作失败，请稍后重试')
+  } finally {
+    rejectLoading.value = false
+  }
+}
+
+// 兼容旧的 handleReject（如果其他地方调用）
+const handleReject = async (record) => {
+  showRejectModal(record)
+}
 </script>
 
 <style scoped src="./my-classes.css"></style>

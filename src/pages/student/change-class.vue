@@ -50,9 +50,20 @@
       />
 
       <!-- 可选班级列表 -->
-      <a-divider>可选班级</a-divider>
+      <a-divider v-if="!hasPendingChangeApplication">可选班级</a-divider>
 
-      <div v-if="currentClass.myCompletionRate < 100" style="text-align: center; padding: 40px; color: #999">
+      <!-- 有待审核申请时不显示班级列表 -->
+      <div v-if="hasPendingChangeApplication" style="text-align: center; padding: 20px; color: #999">
+        <a-alert
+          message="您有正在审核中的换班申请"
+          description="请等待审核结果后再进行其他操作"
+          type="info"
+          show-icon
+          style="max-width: 500px; margin: 0 auto"
+        />
+      </div>
+
+      <div v-else-if="currentClass.myCompletionRate < 100" style="text-align: center; padding: 40px; color: #999">
         <a-empty description="完成当前班级全部任务后才能查看可换班级" />
       </div>
 
@@ -162,7 +173,7 @@
       title="确认换班申请"
       :confirm-loading="submitLoading"
       @ok="confirmChange"
-      @cancel="changeModalVisible = false"
+      @cancel="handleModalCancel"
     >
       <p>您确定要申请换班到 <strong>{{ selectedClass?.name }}</strong> 吗？</p>
       <a-alert
@@ -173,28 +184,92 @@
       >
         <template #description>
           <ul style="margin: 8px 0; padding-left: 20px">
-            <li>提交后需要等待新班级老师审核</li>
-            <li>审核通过后将自动离开当前班级</li>
+            <li>提交后需要目标班级老师和当前班级老师共同审核</li>
+            <li>双方老师都审核通过后才能成功换班</li>
             <li>换班后任务进度将重新计算</li>
           </ul>
-          <div>
-            申请理由:<input/>
+        </template>
+      </a-alert>
+      <a-form style="margin-top: 16px">
+        <a-form-item label="申请理由" required>
+          <a-textarea
+            v-model:value="changeReason"
+            placeholder="请填写换班申请理由，这将同时发送给当前班级和目标班级的老师"
+            :rows="3"
+            :maxlength="200"
+            show-count
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 换班申请状态提示（当有待审核的换班申请时显示） -->
+    <a-card v-if="hasPendingChangeApplication" title="换班申请状态" style="margin-top: 20px">
+      <a-alert
+        type="info"
+        show-icon
+        style="margin-bottom: 16px"
+      >
+        <template #message>
+          <span style="font-weight: bold;">您有正在审核中的换班申请</span>
+        </template>
+        <template #description>
+          <div style="margin-top: 8px">
+            <p>目标班级：<strong>{{ pendingChangeApplication.targetClassName }}</strong></p>
+            <p>申请时间：{{ pendingChangeApplication.createTime }}</p>
+            <p>申请理由：{{ pendingChangeApplication.reason }}</p>
           </div>
         </template>
       </a-alert>
-    </a-modal>
+
+      <a-divider>审核进度</a-divider>
+
+      <a-steps :current="changeApprovalStep" size="small" style="margin: 20px 0">
+        <a-step title="提交申请" :description="pendingChangeApplication.createTime" />
+        <a-step
+          title="当前班级审核"
+          :status="pendingChangeApplication.sourceApproved === 2 ? 'error' : (pendingChangeApplication.sourceApproved === 1 ? 'finish' : 'wait')"
+          :description="pendingChangeApplication.sourceApproved === 1 ? '已通过' : (pendingChangeApplication.sourceApproved === 2 ? '已拒绝' : '待审核')"
+        />
+        <a-step
+          title="目标班级审核"
+          :status="pendingChangeApplication.targetApproved === 2 ? 'error' : (pendingChangeApplication.targetApproved === 1 ? 'finish' : 'wait')"
+          :description="pendingChangeApplication.targetApproved === 1 ? '已通过' : (pendingChangeApplication.targetApproved === 2 ? '已拒绝' : '待审核')"
+        />
+        <a-step title="换班完成" :status="changeApprovalStep === 3 ? 'finish' : 'wait'" />
+      </a-steps>
+
+      <!-- 被拒绝提示 -->
+      <a-alert
+        v-if="pendingChangeApplication.sourceApproved === 2 || pendingChangeApplication.targetApproved === 2"
+        type="error"
+        message="换班申请已被拒绝"
+        :description="pendingChangeApplication.sourceApproved === 2 ? '当前班级老师拒绝了您的换班申请' : '目标班级老师拒绝了您的换班申请'"
+        show-icon
+        style="margin-top: 16px"
+      />
+
+      <div style="text-align: center; margin-top: 20px">
+        <a-space>
+          <a-button @click="handleCancelChangeApplication">撤回申请</a-button>
+          <a-button type="primary" @click="goToMyClass">返回我的班级</a-button>
+        </a-space>
+      </div>
+    </a-card>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, modal } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
 import {
   getMyClassInfo,
   getClassList,
-  applyChangeClass
+  getClassStatus,
+  applyChangeClass,
+  cancelApplication
 } from '@/services/student/smyclass.js'
 
 const router = useRouter()
@@ -221,6 +296,45 @@ const currentClass = ref({
 // 所有班级数据
 const allClasses = ref([])
 
+// ========== 换班申请状态相关 ==========
+const hasPendingChangeApplication = ref(false)
+const pendingChangeApplication = ref({
+  applicationId: null,
+  targetClassId: null,
+  targetClassName: '',
+  reason: '',
+  createTime: '',
+  sourceApproved: 0,  // 0-待审核 1-已同意 2-已拒绝
+  targetApproved: 0,   // 0-待审核 1-已同意 2-已拒绝
+  status: 0
+})
+
+// 换班申请步骤计算
+const changeApprovalStep = computed(() => {
+  if (!hasPendingChangeApplication.value) return 0
+  const app = pendingChangeApplication.value
+
+  // 如果任一被拒绝
+  if (app.sourceApproved === 2 || app.targetApproved === 2) {
+    return app.sourceApproved === 2 ? 1 : 2
+  }
+
+  // 如果都通过了
+  if (app.sourceApproved === 1 && app.targetApproved === 1) {
+    return 3
+  }
+
+  // 第一个审核完成
+  if (app.sourceApproved === 1 || app.targetApproved === 1) {
+    return 2
+  }
+
+  return 1
+})
+
+// 换班申请理由
+const changeReason = ref('')
+
 // 加载可选班级列表
 const fetchClassList = async (level) => {
   loading.value = true
@@ -241,6 +355,35 @@ const fetchClassList = async (level) => {
     message.error('获取班级列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 加载换班申请状态
+const loadChangeApplicationStatus = async () => {
+  try {
+    const res = await getClassStatus()
+    if (res.code === 200 && res.data) {
+      const data = res.data
+
+      // 如果有待审核的换班申请
+      if (data.status === 4 && data.pendingApplication) {
+        hasPendingChangeApplication.value = true
+        pendingChangeApplication.value = {
+          applicationId: data.pendingApplication.applicationId,
+          targetClassId: data.pendingApplication.targetClassId || data.pendingApplication.classId,
+          targetClassName: data.pendingApplication.className || data.pendingApplication.targetClassName || '',
+          reason: data.pendingApplication.reason || '',
+          createTime: data.pendingApplication.createTime || '',
+          sourceApproved: data.pendingApplication.sourceApproved ?? 0,
+          targetApproved: data.pendingApplication.targetApproved ?? 0,
+          status: data.pendingApplication.status ?? 0
+        }
+      } else {
+        hasPendingChangeApplication.value = false
+      }
+    }
+  } catch (error) {
+    console.error('获取换班申请状态失败:', error)
   }
 }
 
@@ -280,6 +423,8 @@ onMounted(async () => {
     selectedLevel.value = currentClass.value.level
   }
   fetchClassList(selectedLevel.value)
+  // 加载换班申请状态
+  await loadChangeApplicationStatus()
 })
 
 // 等级排序
@@ -294,7 +439,7 @@ const filteredClasses = computed(() => {
 const canChangeToClass = (classLevel) => {
   const currentLevelValue = levelOrder[currentClass.value.level]
   const targetLevelValue = levelOrder[classLevel]
-  
+
   return targetLevelValue <= currentLevelValue + 1
 }
 
@@ -306,7 +451,7 @@ const availableClasses = computed(() => {
 
   const levelOrderList = ['D', 'C', 'B', 'A']
   const currentLevelIndex = levelOrderList.indexOf(currentClass.value.level)
-  
+
   return allClasses.value.filter(cls => {
     const clsLevelIndex = levelOrderList.indexOf(cls.level)
     return clsLevelIndex >= currentLevelIndex && clsLevelIndex <= currentLevelIndex + 1
@@ -331,23 +476,41 @@ const submitLoading = ref(false)
 
 // 显示换班确认弹窗
 const showChangeClassModal = (cls) => {
+  // 如果有待审核的换班申请，不允许再次申请
+  if (hasPendingChangeApplication.value) {
+    message.warning('您有待审核的换班申请，请等待审核结果后再操作')
+    return
+  }
+
   selectedClass.value = cls
+  changeReason.value = ''
   changeModalVisible.value = true
 }
 
+// 确认换班
 const confirmChange = async () => {
   if (!selectedClass.value) return
-  
+
+  // 验证申请理由
+  if (!changeReason.value || changeReason.value.trim() === '') {
+    message.warning('请填写换班申请理由')
+    return
+  }
+
+  if (changeReason.value.trim().length < 5) {
+    message.warning('申请理由至少需要5个字符')
+    return
+  }
+
   submitLoading.value = true
   try {
-    const res = await applyChangeClass(selectedClass.value.id)
+    const res = await applyChangeClass(selectedClass.value.id, changeReason.value.trim())
     if (res.code === 200) {
-      message.success('换班申请提交成功，请等待老师审核')
+      message.success('换班申请提交成功，需要双方老师共同审核')
       changeModalVisible.value = false
-      
-      setTimeout(() => {
-        router.push('/student/my-class')
-      }, 1500)
+
+      // 刷新申请状态
+      await loadChangeApplicationStatus()
     } else {
       message.error(res.msg || '换班申请提交失败')
     }
@@ -357,6 +520,36 @@ const confirmChange = async () => {
   } finally {
     submitLoading.value = false
   }
+}
+
+// 取消换班申请
+const handleCancelChangeApplication = () => {
+  modal.confirm({
+    title: '确认撤回申请',
+    content: '确定要撤回此次换班申请吗？撤回后可以重新提交申请。',
+    okText: '确认撤回',
+    cancelText: '取消',
+    async onOk() {
+      try {
+        const res = await cancelApplication(pendingChangeApplication.value.applicationId)
+        if (res.code === 200) {
+          message.success('换班申请已撤回')
+          hasPendingChangeApplication.value = false
+        } else {
+          message.error(res.msg || '撤回申请失败')
+        }
+      } catch (error) {
+        console.error('撤回申请失败:', error)
+        message.error('撤回申请失败，请稍后重试')
+      }
+    }
+  })
+}
+
+// 处理弹窗取消
+const handleModalCancel = () => {
+  changeModalVisible.value = false
+  changeReason.value = ''
 }
 
 // 返回我的班级
