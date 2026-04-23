@@ -275,10 +275,10 @@
             </div>
 
             <!-- 解析 -->
-            <div v-if="question.explanation" class="explanation-section">
+            <!-- <div v-if="question.explanation" class="explanation-section">
               <strong>题目解析：</strong>
               <p>{{ question.explanation }}</p>
-            </div>
+            </div> -->
           </div>
         </a-spin>
       </div>
@@ -354,6 +354,7 @@ const fetchTasks = async () => {
 
 // 页面加载时获取数据
 onMounted(() => {
+  taskStatus.value = 'pending'
   fetchTasks()
 })
 

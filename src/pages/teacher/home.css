@@ -100,8 +100,41 @@
   .action-card {
     margin-bottom: 12px;
   }
-  
+
   .statistics-section :deep(.ant-col) {
     margin-bottom: 16px;
   }
+}
+
+/* 审批通知样式 */
+.notification-title {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.notification-desc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #666;
+}
+
+.notification-desc span:first-child {
+  color: #999;
+  flex-shrink: 0;
+}
+
+.reason-text {
+  color: #333;
+}
+
+.reason-text.no-reason {
+  color: #bfbfbf;
+  font-style: italic;
+}
+
+.charts-section :deep(.ant-list-item) {
+  padding: 12px 0;
 }

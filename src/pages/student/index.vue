@@ -177,13 +177,8 @@ const showProfileModal = () => {
 
 const logout = () => {
   localStorage.removeItem('userInfo')
-  // 清空用户信息
   userInfo.value = {}
-  // 使用 replace 替代 push，避免可以返回
-  router.replace('/login').then(() => {
-    // 确保跳转完成后刷新页面状态
-    window.location.reload()
-  })
+  router.replace('/login')
 }
 </script>
 

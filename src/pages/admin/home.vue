@@ -314,8 +314,8 @@ const initUserGrowthChart = (data) => {
   }
   
   userGrowthChartInstance = echarts.init(userGrowthChart.value)
-  
-  const dates = data.map(item => item.date)
+
+  const dates = data.map(item => formatDateToWeekday(item.date))
   const studentData = data.map(item => item.newStudents)
   const teacherData = data.map(item => item.newTeachers)
   
@@ -443,6 +443,13 @@ const initClassDistributionChart = (data) => {
   classDistributionChartInstance.setOption(option)
 }
 
+// 工具函数：将日期转换为周几标签
+const formatDateToWeekday = (dateStr) => {
+  const date = new Date(dateStr)
+  const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return weekdays[date.getDay()]
+}
+
 // 初始化换班变化图
 const initTransferChart = (data) => {
   if (!hasTransferData.value) return
@@ -453,7 +460,7 @@ const initTransferChart = (data) => {
   
   transferChartInstance = echarts.init(transferChart.value)
   
-  const dates = data.map(item => item.date)
+  const dates = data.map(item => formatDateToWeekday(item.date))
   const transferInData = data.map(item => item.transferIn)
   const transferOutData = data.map(item => item.transferOut)
   
@@ -524,7 +531,7 @@ const initQuitChart = (data) => {
   
   quitChartInstance = echarts.init(quitChart.value)
   
-  const dates = data.map(item => item.date)
+  const dates = data.map(item => formatDateToWeekday(item.date))
   const dropData = data.map(item => item.dropCount)
   
   const option = {
@@ -578,7 +585,7 @@ const initClassCreateChart = (data) => {
   
   classCreateChartInstance = echarts.init(classCreateChart.value)
   
-  const dates = data.map(item => item.date)
+  const dates = data.map(item => formatDateToWeekday(item.date))
   const classCountData = data.map(item => item.classCount)
   
   const option = {

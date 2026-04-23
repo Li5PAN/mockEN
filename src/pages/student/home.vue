@@ -117,26 +117,39 @@
             </template>
           </a-list>
           
-          <!-- 班级任务完成进度 -->
-          <a-divider style="margin: 12px 0;">班级任务完成进度</a-divider>
-          <div class="class-progress">
-            <div class="progress-stats">
-              <div class="stat-row">
-                <span class="stat-label">已完成任务</span>
-                <span class="stat-value">{{ classProgress.completed }} / {{ classProgress.total }}</span>
+          <!-- 消息通知 - 班级申请审核结果 -->
+          <a-divider style="margin: 12px 0;">消息通知</a-divider>
+          <div class="notification-list">
+            <div
+              v-for="item in classNotifications"
+              :key="item.id"
+              class="notification-item"
+              :class="item.status"
+            >
+              <div class="notification-header">
+                <span class="notification-type">
+                  <a-tag :color="getNotificationTagColor(item.type)">{{ getNotificationTypeText(item.type) }}</a-tag>
+                </span>
+                <span class="notification-time">{{ item.time }}</span>
               </div>
-              <div class="stat-row">
-                <span class="stat-label">完成率</span>
-                <span class="stat-value">{{ classProgress.rate }}%</span>
+              <div class="notification-content">
+                {{ item.content }}
               </div>
-            </div>
-            <a-progress 
-              :percent="classProgress.rate" 
-              :stroke-color="getProgressColor(classProgress.rate)"
-              :stroke-width="12"
-            />
-            <div class="progress-tip">
-              班级排名：第 {{ classRanking }} 名 / 共 {{ totalClasses }} 个班级
+              <div class="notification-status">
+                <a-tag v-if="item.status === 'approved'" color="success">
+                  <template #icon><CheckCircleOutlined /></template>
+                  已通过
+                </a-tag>
+                <a-tag v-else-if="item.status === 'rejected'" color="error">
+                  <template #icon><CloseCircleOutlined /></template>
+                  未通过
+                </a-tag>
+                <a-tag v-else color="processing">
+                  <template #icon><ClockCircleOutlined /></template>
+                  处理中
+                </a-tag>
+                <span v-if="item.reason" class="notification-reason">原因：{{ item.reason }}</span>
+              </div>
             </div>
           </div>
         </a-card>
@@ -229,6 +242,7 @@ import {
   CheckSquareOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons-vue'
 import {
   getStudentOverview,
@@ -237,21 +251,19 @@ import {
   getWeeklyTasks,
   getWeeklyWords,
   getPendingTasks,
-  getClassProgress
+  getClassProgress,
+  getClassNotifications
 } from '../../services/student/sindex.js'
 import { getCurrentWordCount } from '../../utils/wordCount.js'
 
 // 打卡相关数据
 const checkInStats = ref({
   continuousDays: 0,
-  totalDays: parseInt(localStorage.getItem('clockInTotalDays') || '0'),
+  totalDays: 0,
 })
 
-// 今日是否已打卡（根据今天的日期判断，凌晨自动重置）
-const isCheckedIn = computed(() => {
-  const today = dayjs().format('YYYY-MM-DD')
-  return checkedInDates.value.includes(today)
-})
+// 今日是否已打卡
+const isCheckedIn = ref(false)
 
 // 打卡日期记录（从 localStorage 加载历史记录）
 const checkedInDates = ref(JSON.parse(localStorage.getItem('clockInDates') || '[]'))
@@ -267,6 +279,8 @@ const calendarValue = ref(dayjs())
 // 判断某个日期是否已打卡
 const isCheckedInDate = (date) => {
   const dateStr = dayjs(date).format('YYYY-MM-DD')
+  const today = dayjs().format('YYYY-MM-DD')
+  if (dateStr === today) return isCheckedIn.value
   return checkedInDates.value.includes(dateStr)
 }
 
@@ -295,17 +309,9 @@ const handleCheckIn = async () => {
   try {
     const res = await clockIn()
     if (res && res.code === 200) {
-      checkInStats.value.continuousDays = res.data.consecutiveDays ?? checkInStats.value.continuousDays + 1
-      checkInStats.value.totalDays = res.data.totalDays ?? checkInStats.value.totalDays + 1
-      localStorage.setItem('clockInTotalDays', String(checkInStats.value.totalDays))
-      localStorage.setItem('clockInLastCountedDate', dayjs().format('YYYY-MM-DD'))
-      
-      const today = dayjs().format('YYYY-MM-DD')
-      if (!checkedInDates.value.includes(today)) {
-        checkedInDates.value.push(today)
-        saveCheckedInDates()
-      }
       message.success('打卡成功！连续打卡' + res.data.consecutiveDays + '天')
+      isCheckedIn.value = true
+      checkInStats.value = res.data
     }
   } catch (error) {
     message.error('打卡失败，请重试')
@@ -339,6 +345,40 @@ const pendingTasksList = ref([
     questionCount: 25,
   },
 ])
+
+// 班级消息通知（入班/退班/换班审核结果）
+const classNotifications = ref([])
+
+const getNotificationTypeText = (type) => {
+  const map = { '1': '入班申请', '2': '退班申请', '3': '换班申请' }
+  return map[type] || type
+}
+
+const getNotificationTagColor = (type) => {
+  const map = { '1': 'blue', '2': 'orange', '3': 'purple' }
+  return map[type] || 'default'
+}
+
+// 获取班级申请审核通知
+const fetchClassNotifications = async () => {
+  try {
+    const res = await getClassNotifications()
+    if (res && res.code === 200 && res.data) {
+      classNotifications.value = res.data.map(item => ({
+        id: item.id,
+        type: item.type,
+        typeText: item.typeText,
+        status: item.status,
+        content: item.content,
+        reason: item.reason,
+        myReason: item.myReason,
+        time: item.updateTime ? item.updateTime.slice(0, 16).replace('T', ' ') : item.createTime.slice(0, 16).replace('T', ' '),
+      }))
+    }
+  } catch (error) {
+    console.error('获取班级申请审核通知失败:', error)
+  }
+}
 
 // 班级任务完成进度（整体）
 const classProgress = ref({
@@ -578,27 +618,11 @@ const fetchClockInStatus = async () => {
   try {
     const res = await getClockInStatus()
     if (res && res.code === 200 && res.data) {
+      isCheckedIn.value = res.data.clockedIn ?? false
       checkInStats.value.continuousDays = res.data.consecutiveDays ?? 0
-      const apiDates = res.data.clockInDates || []
-      
-      const today = dayjs().format('YYYY-MM-DD')
-      const mergedDates = [...new Set([...checkedInDates.value, ...apiDates])]
-      
-      if (res.data.clockedIn && !mergedDates.includes(today)) {
-        mergedDates.push(today)
-      }
-      
-      checkedInDates.value = mergedDates
+      checkInStats.value.totalDays = res.data.totalDays ?? 0
+      checkedInDates.value = res.data.clockInDates || []
       saveCheckedInDates()
-      
-      const lastCountedDate = localStorage.getItem('clockInLastCountedDate')
-      if (lastCountedDate !== today) {
-        checkInStats.value.totalDays = res.data.totalDays || (checkInStats.value.totalDays + 1)
-        localStorage.setItem('clockInTotalDays', String(checkInStats.value.totalDays))
-        localStorage.setItem('clockInLastCountedDate', today)
-      } else {
-        checkInStats.value.totalDays = res.data.totalDays || checkInStats.value.totalDays
-      }
     }
   } catch (error) {
     console.error('获取打卡状态失败:', error)
@@ -631,6 +655,7 @@ onMounted(() => {
   fetchClockInStatus()
   fetchPendingTasks()
   fetchClassProgress()
+  fetchClassNotifications()
   initTaskChart()
   initWordTrendChart()
   

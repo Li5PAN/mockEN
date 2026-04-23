@@ -259,16 +259,88 @@
   text-align: center;
 }
 
+/* 消息通知样式 */
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+  background: #fafafa;
+  transition: all 0.3s;
+}
+
+.notification-item:hover {
+  background: #f5f5f5;
+  transform: translateX(4px);
+}
+
+.notification-item.approved {
+  border-left: 3px solid #52c41a;
+}
+
+.notification-item.rejected {
+  border-left: 3px solid #ff4d4f;
+}
+
+.notification-item.pending {
+  border-left: 3px solid #1890ff;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.notification-type :deep(.ant-tag) {
+  margin: 0;
+}
+
+.notification-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.notification-content {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.notification-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notification-reason {
+  font-size: 12px;
+  color: #ff4d4f;
+}
+
 /* 滚动条样式 */
-.task-list::-webkit-scrollbar {
+.task-list::-webkit-scrollbar,
+.notification-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.task-list::-webkit-scrollbar-thumb {
+.task-list::-webkit-scrollbar-thumb,
+.notification-list::-webkit-scrollbar-thumb {
   background: #d9d9d9;
   border-radius: 3px;
 }
 
-.task-list::-webkit-scrollbar-thumb:hover {
+.task-list::-webkit-scrollbar-thumb:hover,
+.notification-list::-webkit-scrollbar-thumb:hover {
   background: #bfbfbf;
 }

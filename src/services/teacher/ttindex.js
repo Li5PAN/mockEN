@@ -63,10 +63,24 @@ export async function getErrorTypeDistribution() {
   return res
 }
 
+/**
+ * 获取班级创建审批通知列表（管理员对老师班级创建的审核状态）
+ * @returns {Promise<Array>} - 审批通知列表 [{className, status, reason, createTime}]
+ *   status: 'approved' 通过, 'rejected' 拒绝, 'pending' 待审核
+ */
+export async function getClassApprovalNotifications() {
+  const res = await request({
+    url: '/teacher-home/class-approval-notifications',
+    method: 'get'
+  })
+  return res
+}
+
 export default {
   getTeacherDashboard,
   getLevelDistribution,
   getTaskCompletion,
   getActivityTrend,
-  getErrorTypeDistribution
+  getErrorTypeDistribution,
+  getClassApprovalNotifications
 }

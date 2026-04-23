@@ -405,9 +405,9 @@ const loadData = async () => {
       }))
     }
 
-    // 加载换班申请数据 (applicationType: 2)
+    // 加载换班申请数据 (applicationType: 3)
     const transferRes = await getApplications({
-      applicationType: 2,
+      applicationType: 3,
       pageNum: 1,
       pageSize: 10
     })
@@ -423,9 +423,9 @@ const loadData = async () => {
       }))
     }
 
-    // 加载退班申请数据 (applicationType: 3)
+    // 加载退班申请数据 (applicationType: 2)
     const quitRes = await getApplications({
-      applicationType: 3,
+      applicationType: 2,
       pageNum: 1,
       pageSize: 10
     })

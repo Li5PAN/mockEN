@@ -125,9 +125,9 @@ export const getPendingTasks = () => {
 /**
  * 7. 获取班级任务完成进度
  * GET /api/student-home/class-progress
- * 
+ *
  * @returns {Promise} 返回班级任务完成进度
- * 
+ *
  * 响应数据:
  * - completed: 已完成任务数
  * - total: 总任务数
@@ -142,6 +142,34 @@ export const getClassProgress = () => {
   })
 }
 
+/**
+ * 8. 获取班级申请审核通知
+ * GET /api/student-home/class-notifications
+ *
+ * @returns {Promise} 返回班级申请审核通知列表
+ *
+ * 响应数据: Array<{
+ *   id: number,
+ *   type: string,        // '1'=入班, '2'=退班, '3'=换班
+ *   typeText: string,    // 申请类型文本
+ *   status: string,      // 'pending'=处理中, 'approved'=已通过, 'rejected'=未通过
+ *   content: string,     // 通知内容描述
+ *   className: string,   // 班级名称
+ *   classLevel: string,  // 班级等级
+ *   targetClassName: string,  // 目标班级名称（仅换班申请有值）
+ *   reason: string,      // 老师审核意见/拒绝原因
+ *   myReason: string,    // 学生的申请理由
+ *   createTime: string,  // 申请时间
+ *   updateTime: string   // 审核时间
+ * }>
+ */
+export const getClassNotifications = () => {
+  return request({
+    url: '/student-home/class-notifications',
+    method: 'GET'
+  })
+}
+
 export default {
   getStudentOverview,
   getClockInStatus,
@@ -149,5 +177,6 @@ export default {
   getWeeklyTasks,
   getWeeklyWords,
   getPendingTasks,
-  getClassProgress
+  getClassProgress,
+  getClassNotifications
 }

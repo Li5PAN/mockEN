@@ -190,10 +190,10 @@
           <p><strong>您的答案：</strong><span class="wrong-text">{{ currentError.questionType === '1' ? formatUserAnswer(currentError.userAnswer) : currentError.userAnswer }}</span></p>
         </div>
 
-        <a-divider>题目解析</a-divider>
+        <!-- <a-divider>题目解析</a-divider>
         <div class="explanation-section">
           <p>{{ currentError.explanation || '暂无解析' }}</p>
-        </div>
+        </div> -->
       </div>
     </a-modal>
 

@@ -298,18 +298,18 @@
           <div class="word-card">
             <h2>请填写缺失的字母</h2>
             <div class="word-display">
-              <span 
-                v-for="(char, index) in displayWord" 
+              <span
+                v-for="(char, index) in displayWord"
                 :key="index"
                 class="char-box"
                 :class="{ blank: char === '_' }"
               >
                 <a-input
                   v-if="char === '_'"
-                  v-model:value="fillInputs[index]"
+                  v-model:value="fillInputs[blankPositions.indexOf(index)]"
                   maxlength="1"
                   class="fill-input"
-                  @input="handleFillInput(index)"
+                  @input="handleFillInput(blankPositions.indexOf(index))"
                 />
                 <span v-else>{{ char }}</span>
               </span>
@@ -375,6 +375,26 @@ import { incrementWordCount } from '../../utils/wordCount.js'
 
 const router = useRouter()
 
+// 模块级缓存：单词列表只请求一次（使用 sessionStorage 持久化）
+const WORD_CACHE_KEY = 'word_learn_cache'
+
+const getCachedWords = () => {
+  try {
+    const cached = sessionStorage.getItem(WORD_CACHE_KEY)
+    return cached ? JSON.parse(cached) : null
+  } catch {
+    return null
+  }
+}
+
+const setCachedWords = (words) => {
+  try {
+    sessionStorage.setItem(WORD_CACHE_KEY, JSON.stringify(words))
+  } catch {
+    // storage 可能不可用，静默失败
+  }
+}
+
 // 搜索相关
 const searchKeyword = ref('')
 const searching = ref(false)
@@ -406,26 +426,35 @@ const correctAnswer = ref('')
 // 填空模式
 const fillInputs = ref({})
 const displayWord = ref([])
+const blankPositions = ref([])
 
 const initFillMode = () => {
   if (!currentWord.value.word) {
     displayWord.value = []
+    blankPositions.value = []
     return
   }
   const word = currentWord.value.word
   const result = []
+  const positions = []
   const blankCount = Math.ceil(word.length / 3)
-  const blankPositions = new Set()
-  
-  while (blankPositions.size < blankCount) {
-    blankPositions.add(Math.floor(Math.random() * word.length))
+  const blankSet = new Set()
+
+  while (blankSet.size < blankCount) {
+    blankSet.add(Math.floor(Math.random() * word.length))
   }
-  
+
   for (let i = 0; i < word.length; i++) {
-    result.push(blankPositions.has(i) ? '_' : word[i])
+    if (blankSet.has(i)) {
+      result.push('_')
+      positions.push(i)
+    } else {
+      result.push(word[i])
+    }
   }
-  
+
   displayWord.value = result
+  blankPositions.value = positions
 }
 
 // 搜索单词
@@ -660,8 +689,8 @@ const checkSpelling = async () => {
 const checkFill = async () => {
   if (!currentWord.value.wordId) return
   
-  const userAnswer = displayWord.value.map((char, index) => {
-    return char === '_' ? (fillInputs.value[index] || '') : char
+  const userAnswer = blankPositions.value.map(blankIndex => {
+    return fillInputs.value[blankIndex] || ''
   }).join('')
 
   try {
@@ -685,16 +714,12 @@ const checkFill = async () => {
 }
 
 // 处理填空输入
-const handleFillInput = (index) => {
-  const nextBlank = displayWord.value.findIndex((char, i) => i > index && char === '_')
-  if (nextBlank !== -1 && fillInputs.value[index]) {
+const handleFillInput = (blankIndex) => {
+  if (blankIndex < blankPositions.value.length - 1) {
     setTimeout(() => {
-      const inputs = document.querySelectorAll('.fill-input input')
-      const currentInputIndex = Array.from(inputs).findIndex(input => 
-        input === document.activeElement
-      )
-      if (currentInputIndex !== -1 && inputs[currentInputIndex + 1]) {
-        inputs[currentInputIndex + 1].focus()
+      const inputs = document.querySelectorAll('.fill-input')
+      if (inputs[blankIndex + 1]) {
+        inputs[blankIndex + 1].focus()
       }
     }, 0)
   }
@@ -734,18 +759,35 @@ const transformWordData = (word) => {
 
 // 加载单词列表
 const loadWords = async () => {
+  // 如果已有缓存，直接使用缓存数据，不再请求接口
+  const cached = getCachedWords()
+  if (cached !== null) {
+    allWords.value = cached
+    const random1500 = shuffleArray([...cached]).slice(0, 2000)
+    const selectedWords = shuffleArray([...random1500]).slice(0, 1000)
+    wordList.value = selectedWords
+    learnedCount.value = 0
+    currentIndex.value = 0
+    isInitialLoading.value = false
+    initFillMode()
+    checkCurrentFavorite()
+    return
+  }
+
   isInitialLoading.value = true
-  
+
   try {
-    const res = await fetchWordList({ 
-      page: 1, 
-      pageSize: 100 
+    const res = await fetchWordList({
+      page: 1,
+      pageSize: 5000
     })
-    
+
     if (res.records && res.records.length > 0) {
-      // 转换数据格式
-      allWords.value = res.records.map(transformWordData)
-      const selectedWords = shuffleArray([...allWords.value]).slice(0, 100)
+      const transformed = res.records.map(transformWordData)
+      setCachedWords(transformed)
+      allWords.value = transformed
+      const random1500 = shuffleArray([...transformed]).slice(0, 2000)
+      const selectedWords = shuffleArray([...random1500]).slice(0, 1000)
       wordList.value = selectedWords
       learnedCount.value = 0
       currentIndex.value = 0

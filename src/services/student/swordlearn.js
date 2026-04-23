@@ -14,7 +14,7 @@ import request from '../../utils/request.js'
  * @returns {Promise} 包含单词列表的 Promise
  */
 export const fetchWordList = (params = {}) => {
-  const { keyword = '', page = 1, pageSize = 100 } = params
+  const { keyword = '', page = 1, pageSize = 5000 } = params
   return request({
     url: '/student-words',
     method: 'GET',

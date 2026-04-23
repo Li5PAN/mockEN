@@ -117,10 +117,48 @@
           </a-card>
         </a-col>
 
-        <!-- 学生活跃度趋势 -->
+        <!-- 班级创建审批通知 -->
         <a-col :xs="24" :lg="12">
-          <a-card title="学生活跃度趋势（最近7天）" :bordered="false">
-            <div ref="activityTrendChart" style="width: 100%; height: 350px;"></div>
+          <a-card title="班级创建审批通知" :bordered="false">
+            <a-list
+              :data-source="approvalNotifications"
+              :loading="notificationsLoading"
+              item-layout="horizontal"
+              size="small"
+              :pagination="notificationPagination"
+            >
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta>
+                    <template #avatar>
+                      <a-badge :status="getStatusBadgeType(item.status)" />
+                    </template>
+                    <template #title>
+                      <span class="notification-title">
+                        {{ item.className || '班级' }}
+                        <a-tag
+                          :color="getStatusColor(item.status)"
+                          style="margin-left: 8px;"
+                        >
+                          {{ getStatusText(item.status) }}
+                        </a-tag>
+                      </span>
+                    </template>
+                    <template #description>
+                      <div class="notification-desc">
+                        <span>审批理由：</span>
+                        <span :class="['reason-text', { 'no-reason': !item.reason }]">
+                          {{ item.reason || '-' }}
+                        </span>
+                      </div>
+                    </template>
+                  </a-list-item-meta>
+                </a-list-item>
+              </template>
+              <template #emptyContent>
+                <a-empty description="暂无审批通知" />
+              </template>
+            </a-list>
           </a-card>
         </a-col>
 
@@ -160,7 +198,8 @@ import {
   getLevelDistribution,
   getTaskCompletion,
   getActivityTrend,
-  getErrorTypeDistribution
+  getErrorTypeDistribution,
+  getClassApprovalNotifications
 } from '@/services/teacher/ttindex'
 
 const router = useRouter()
@@ -172,6 +211,64 @@ const statistics = reactive({
   pendingReviews: 0,
   pendingTasks: 0
 })
+
+// 班级创建审批通知列表
+const approvalNotifications = ref([])
+const notificationsLoading = ref(false)
+const notificationPagination = reactive({
+  pageSize: 5,
+  simple: true,
+  showSizeChanger: false,
+  showQuickJumper: false
+})
+
+// 获取审批通知列表
+const fetchApprovalNotifications = async () => {
+  notificationsLoading.value = true
+  try {
+    const res = await getClassApprovalNotifications()
+    if (res && res.code === 200) {
+      approvalNotifications.value = res.data || []
+    } else {
+      approvalNotifications.value = []
+    }
+  } catch (error) {
+    console.error('获取审批通知失败:', error)
+    approvalNotifications.value = []
+  } finally {
+    notificationsLoading.value = false
+  }
+}
+
+// 获取状态徽章类型
+const getStatusBadgeType = (status) => {
+  const map = {
+    'approved': 'success',
+    'rejected': 'error',
+    'pending': 'warning'
+  }
+  return map[status] || 'default'
+}
+
+// 获取状态颜色
+const getStatusColor = (status) => {
+  const map = {
+    'approved': 'success',
+    'rejected': 'error',
+    'pending': 'warning'
+  }
+  return map[status] || 'default'
+}
+
+// 获取状态文本
+const getStatusText = (status) => {
+  const map = {
+    'approved': '已通过',
+    'rejected': '已拒绝',
+    'pending': '待审核'
+  }
+  return map[status] || status
+}
 
 // 获取教师首页数据
 const fetchDashboardData = async () => {
@@ -569,6 +666,9 @@ onMounted(() => {
       fetchActivityTrend(),
       fetchErrorTypeDistribution()
     ])
+
+    // 获取班级创建审批通知
+    fetchApprovalNotifications()
 
     // 初始化图表
     initTaskCompletionChart(taskData)

@@ -262,7 +262,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { message, modal } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { UserOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons-vue'
 import {
   getMyClassInfo,
@@ -524,7 +524,7 @@ const confirmChange = async () => {
 
 // 取消换班申请
 const handleCancelChangeApplication = () => {
-  modal.confirm({
+  Modal.confirm({
     title: '确认撤回申请',
     content: '确定要撤回此次换班申请吗？撤回后可以重新提交申请。',
     okText: '确认撤回',
