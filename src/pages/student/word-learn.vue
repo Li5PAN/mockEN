@@ -126,7 +126,7 @@
             </div>
 
             <!-- 释义 -->
-            <div class="meanings-section">
+            <div v-if="searchResult.meanings && searchResult.meanings.length > 0" class="meanings-section">
               <h3>释义</h3>
               <div class="meanings-list">
                 <p v-for="(meaning, index) in searchResult.meanings" :key="index">
@@ -143,7 +143,7 @@
             </div>
 
             <!-- 例句 -->
-            <div v-if="searchResult.examples.length > 0" class="examples-section">
+            <div v-if="searchResult.examples && searchResult.examples.length > 0" class="examples-section">
               <h3>例句</h3>
               <div 
                 v-for="(example, index) in searchResult.examples" 
@@ -156,7 +156,7 @@
             </div>
 
             <!-- 网络释义 -->
-            <div v-if="searchResult.webMeanings.length > 0" class="web-meanings-section">
+            <div v-if="searchResult.webMeanings && searchResult.webMeanings.length > 0" class="web-meanings-section">
               <h3>网络释义</h3>
               <div 
                 v-for="(item, index) in searchResult.webMeanings" 
@@ -471,12 +471,20 @@ const handleSearch = async () => {
     const keyword = searchKeyword.value.trim()
     const res = await searchWord(keyword)
     
-    if (res.success && res.data) {
-      // 转换搜索结果数据格式
-      searchResult.value = transformWordData(res.data)
-      if (res.data.meanings && res.data.meanings.length > 0) {
+    if (res.code === 200 && res.rows && res.rows.length > 0) {
+      // 英文搜索：分页格式 { code: 200, rows: [...] }
+      searchResult.value = transformWordData(res.rows[0])
+      const word = res.rows[0]
+      if (word.meanings && word.meanings.length > 0) {
         message.success('查询成功')
-      } else if (res.data.chineseMeaning) {
+      } else if (word.chineseMeaning) {
+        message.success('查询成功')
+      }
+      checkSearchResultFavorite()
+    } else if (res.success && res.data) {
+      // 中文搜索：单个对象格式 { success: true, data: { ... } }
+      searchResult.value = transformWordData(res.data)
+      if (res.data.chineseMeaning) {
         message.success('查询成功')
       }
       checkSearchResultFavorite()
@@ -729,7 +737,7 @@ const handleFillInput = (blankIndex) => {
 const transformWordData = (word) => {
   // 处理释义 - 将 chineseMeaning 转换为数组
   let meanings = []
-  if (word.chineseMeaning) {
+  if (word.chineseMeaning && word.chineseMeaning.trim()) {
     // 按分号或换行分割，并过滤空项
     meanings = word.chineseMeaning
       .split(/[;；]/)

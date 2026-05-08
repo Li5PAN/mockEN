@@ -2,17 +2,8 @@
   padding: 20px;
 }
 
-.card-title-wrapper {
-  display: flex;
-  align-items: center;
-}
-
 .title-text {
   font-size: 16px;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.85);
-}
-
-.title-buttons {
-  margin-left: 10px;
 }

@@ -63,23 +63,7 @@
     <!-- 底部班级排名 -->
     <a-card>
       <template #title>
-        <div class="card-title-wrapper">
-          <span class="title-text">班级排名</span>
-          <a-space :size="5" class="title-buttons">
-            <a-button 
-              :type="rankType === 'time' ? 'primary' : 'default'"
-              @click="rankType = 'time'"
-            >
-              按学习时长
-            </a-button>
-            <a-button 
-              :type="rankType === 'words' ? 'primary' : 'default'"
-              @click="rankType = 'words'"
-            >
-              按掌握单词量
-            </a-button>
-          </a-space>
-        </div>
+        <span class="title-text">班级排名</span>
       </template>
 
       <a-table
@@ -107,14 +91,6 @@
               {{ record.name }} {{ record.isMe ? '(我)' : '' }}
             </span>
           </template>
-          <template v-if="column.key === 'studyTime'">
-            <a-progress
-              :percent="(record.studyTime / maxStudyTime) * 100"
-              :show-info="false"
-              :stroke-color="record.isMe ? '#1890ff' : '#52c41a'"
-            />
-            <span style="margin-left: 10px">{{ record.studyTime }}小时</span>
-          </template>
           <template v-if="column.key === 'masteredWords'">
             <a-progress
               :percent="(record.masteredWords / maxWords) * 100"
@@ -130,7 +106,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import * as echarts from 'echarts'
 import {
   BookOutlined,
@@ -230,22 +206,17 @@ const fetchCompareRate = async () => {
   }
 }
 
-// 排名类型
-const rankType = ref('time')
-
 // 排名数据
 const rankList = ref([])
-const maxStudyTime = ref(0)
 const maxWords = ref(0)
 const rankTotal = ref(0)
 
 // 获取排名数据
-const fetchRanking = async (type) => {
+const fetchRanking = async () => {
   try {
-    const res = await getRanking(type)
+    const res = await getRanking('words')
     if (res.code === 200 && res.data) {
       rankList.value = res.data.list || []
-      maxStudyTime.value = res.data.maxStudyTime || 0
       maxWords.value = res.data.maxWords || 0
       rankTotal.value = res.data.total || 0
     }
@@ -254,17 +225,11 @@ const fetchRanking = async (type) => {
   }
 }
 
-// 监听排名类型切换
-watch(rankType, (newType) => {
-  fetchRanking(newType)
-})
-
 // 排名表格列
 const rankColumns = [
   { title: '排名', dataIndex: 'rank', key: 'rank', width: 100 },
-  { title: '姓名', dataIndex: 'name', key: 'name', width: 150 },
-  { title: '学习时长', key: 'studyTime', width: 300 },
-  { title: '掌握单词', key: 'masteredWords', width: 300 },
+  { title: '姓名', dataIndex: 'name', key: 'name', width: 200 },
+  { title: '掌握单词', key: 'masteredWords', width: 400 },
 ]
 
 // 初始化每日学习数据图表
@@ -416,7 +381,7 @@ onMounted(async () => {
     fetchStats(),
     fetchDailyStudy(),
     fetchCompareRate(),
-    fetchRanking(rankType.value)
+    fetchRanking()
   ])
   initDailyChart()
   initCompareChart()

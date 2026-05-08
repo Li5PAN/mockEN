@@ -233,7 +233,7 @@
                 class="option-item"
                 :class="{ 
                   'correct-answer': isCorrectOption(question, option.key),
-                  'user-answer': isUserOption(question, option.key)
+                  'user-answer': isUserOption(question, option.key) && !isCorrectOption(question, option.key)
                 }"
               >
                 {{ option.key }}. {{ option.value }}
@@ -572,8 +572,13 @@ const viewDetail = async (task) => {
 
 // 答案判断辅助函数
 const isCorrectOption = (question, optionKey) => {
-  const correct = question.correctAnswer
+  let correct = question.correctAnswer
   if (!correct) return false
+  if (typeof correct === 'string' && correct.startsWith('[')) {
+    try {
+      correct = JSON.parse(correct)
+    } catch {}
+  }
   if (Array.isArray(correct)) {
     return correct.includes(optionKey)
   }
@@ -581,8 +586,13 @@ const isCorrectOption = (question, optionKey) => {
 }
 
 const isUserOption = (question, optionKey) => {
-  const userAnswer = question.userAnswer
+  let userAnswer = question.userAnswer
   if (!userAnswer) return false
+  if (typeof userAnswer === 'string' && userAnswer.startsWith('[')) {
+    try {
+      userAnswer = JSON.parse(userAnswer)
+    } catch {}
+  }
   if (Array.isArray(userAnswer)) {
     return userAnswer.includes(optionKey)
   }
